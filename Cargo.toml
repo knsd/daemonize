@@ -1,0 +1,11 @@
+[package]
+name = "daemonize"
+version = "0.0.1"
+authors = ["Fedor Gogolev <knsd@knsd.net>"]
+license = "MIT"
+homepage = "https://github.com/knsd/daemonize/"
+repository = "https://github.com/knsd/daemonize/"
+documentation = "https://knsd.github.io/daemonize"
+
+[dependencies]
+libc = "*"
