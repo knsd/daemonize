@@ -29,6 +29,21 @@ extern {
     pub fn flock(fd: libc::c_int, operation: libc::c_int) -> libc::c_int;
 }
 
+#[cfg(target_os = "linux")]
+unsafe fn errno_location() -> *const libc::c_int {
+    extern { fn __errno_location() -> *const libc::c_int; }
+    __errno_location()
+}
+#[cfg(target_os = "macos")]
+unsafe fn errno_location() -> *const libc::c_int {
+    extern { fn __error() -> *const libc::c_int; }
+    __error()
+}
+
+pub unsafe fn errno() -> libc::c_int {
+    *errno_location()
+}
+
 pub unsafe fn get_gid_by_name(name: &str) -> Option<libc::gid_t> {
     let rname: *const str = name;
     let ptr = getgrnam(rname);
@@ -50,4 +65,3 @@ pub unsafe fn get_uid_by_name(name: &str) -> Option<libc::uid_t> {
         Some(s.pw_uid)
     }
 }
-

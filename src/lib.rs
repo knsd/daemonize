@@ -13,12 +13,12 @@ use libc::funcs::posix88::unistd;
 use libc::funcs::posix88::stdio::{fileno};
 use libc::funcs::c95::stdio;
 
-use self::ffi::{flock, get_gid_by_name, get_uid_by_name, umask};
+use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name, umask};
 
 macro_rules! tryret {
     ($expr:expr, $ret:expr, $err:expr) => (
         if $expr == -1 {
-            return Err($err)
+            return Err($err(errno()))
         } else {
             $ret
         }
@@ -30,15 +30,15 @@ pub enum DaemonizeError {
     /// Unable to fork
     Fork,
     /// Unable to create new session
-    DetachSession,
+    DetachSession(libc::c_int),
     /// Group not found
     GroupNotFound,
     /// Unable to set group
-    SetGroup,
+    SetGroup(libc::c_int),
     /// User not found
     UserNotFound,
     /// Unable to set user
-    SetUser,
+    SetUser(libc::c_int),
     /// Unable to change directory
     ChangeDirectory,
     /// pid_file options contains NUL
@@ -46,9 +46,9 @@ pub enum DaemonizeError {
     /// Unable to open pid file
     UnableOpenPidfile,
     /// Unable to lock pid file
-    UnableLockPidfile,
+    UnableLockPidfile(libc::c_int),
     /// Unable to redirect standard streams to /dev/null
-    UnableRedirectStreams,
+    UnableRedirectStreams(libc::c_int),
     /// Unable to write self pid to pid file
     UnableWritePid,
 }
@@ -148,7 +148,7 @@ unsafe fn redirect_standard_streams() -> Result<()> {
     let devnull_file = stdio::fopen(b"/dev/null" as *const u8 as *const i8,
                                     b"w+" as *const u8 as *const i8);
     if devnull_file.is_null() {
-        return Err(DaemonizeError::UnableRedirectStreams)
+        return Err(DaemonizeError::UnableRedirectStreams(2)) // FIXME ENOENT
     };
 
     let devnull_fd = fileno(devnull_file);
