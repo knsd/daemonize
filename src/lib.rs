@@ -148,7 +148,7 @@ unsafe fn redirect_standard_streams() -> Result<()> {
     let devnull_file = stdio::fopen(b"/dev/null" as *const u8 as *const i8,
                                     b"w+" as *const u8 as *const i8);
     if devnull_file.is_null() {
-        return Err(DaemonizeError::UnableRedirectStreams(2)) // FIXME ENOENT
+        return Err(DaemonizeError::UnableRedirectStreams(libc::ENOENT))
     };
 
     let devnull_fd = fileno(devnull_file);
