@@ -25,15 +25,6 @@ macro_rules! tryret {
     )
 }
 
-macro_rules! omap {
-    ($expr:expr, $f: expr) => (
-        match $expr {
-            None => None,
-            Some(x) => Some(try!($f(x)))
-        };
-    )
-}
-
 #[derive(Debug)]
 pub enum DaemonizeError {
     /// Unable to fork
@@ -92,6 +83,15 @@ pub struct DaemonOptions {
 /// Parameter `privileged_action` is an action that will be executed before drop
 /// privileges if user or group option is provided.
 pub fn daemonize<T>(options: DaemonOptions, privileged_action: &Fn() -> T) -> Result<(T)> {
+    macro_rules! omap {
+        ($expr:expr, $f: expr) => (
+            match $expr {
+                None => None,
+                Some(x) => Some(try!($f(x)))
+            };
+        )
+    }
+
     unsafe {
         let pid_file_fd = omap!(options.pid_file, create_pid_file);
 
