@@ -25,6 +25,15 @@ macro_rules! tryret {
     )
 }
 
+macro_rules! omap {
+    ($expr:expr, $f: expr) => (
+        match $expr {
+            None => None,
+            Some(x) => Some(try!($f(x)))
+        };
+    )
+}
+
 #[derive(Debug)]
 pub enum DaemonizeError {
     /// Unable to fork
@@ -84,13 +93,7 @@ pub struct DaemonOptions {
 /// privileges if user or group option is provided.
 pub fn daemonize<T>(options: DaemonOptions, privileged_action: &Fn() -> T) -> Result<(T)> {
     unsafe {
-        let pid_file_fd = match options.pid_file {
-            None => None,
-            Some(pid_file) => match create_pid_file(pid_file) {
-                Ok(pid_file) => Some(pid_file),
-                Err(err) => return Err(err),
-            }
-        };
+        let pid_file_fd = omap!(options.pid_file, create_pid_file);
 
         try!(perform_fork());
         try!(set_sid());
@@ -108,13 +111,9 @@ pub fn daemonize<T>(options: DaemonOptions, privileged_action: &Fn() -> T) -> Re
 
         let privileged_action_result = privileged_action();
 
-        try!(options.group.map_or(Ok(()), |g| set_group(g)));
-        try!(options.user.map_or(Ok(()), |u| set_user(u)));
-
-        match pid_file_fd {
-            Some(fd) => try!(write_pid_file(fd)),
-            None => ()
-        };
+        omap!(options.group, set_group);
+        omap!(options.user, set_user);
+        omap!(pid_file_fd, write_pid_file);
 
         Ok(privileged_action_result)
     }
