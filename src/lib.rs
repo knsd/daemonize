@@ -102,12 +102,7 @@ pub fn daemonize<T>(options: DaemonOptions, privileged_action: &Fn() -> T) -> Re
 
         umask(0o027);
 
-        try!(options.directory.map_or(Ok(()), |d| {
-            match set_current_dir(&Path::new(d)) {
-                Ok(()) => Ok(()),
-                Err(_) => Err(DaemonizeError::ChangeDirectory)
-            }
-        }));
+        omap!(options.directory, |d| set_current_dir(&Path::new(d)).map_err(|_| DaemonizeError::ChangeDirectory));
 
         let privileged_action_result = privileged_action();
 
