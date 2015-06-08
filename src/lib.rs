@@ -95,9 +95,9 @@ pub fn daemonize<T>(options: DaemonOptions, privileged_action: &Fn() -> T) -> Re
         try!(perform_fork());
         try!(set_sid());
 
-        // try!(redirect_standard_streams());
+        try!(redirect_standard_streams());
 
-        umask(0o27); // FIXME: WAT
+        umask(0o027);
 
         try!(options.directory.map_or(Ok(()), |d| {
             match set_current_dir(&Path::new(d)) {
