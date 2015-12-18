@@ -1,22 +1,19 @@
-#[doc(hidden)]
-pub mod ffi;
+mod ffi;
 
 extern crate libc;
-#[macro_use] extern crate log;
 #[macro_use] extern crate quick_error;
 
 use std::env::{set_current_dir};
-use std::error::{Error};
 use std::ffi::{CString};
 use std::os::unix::ffi::OsStringExt;
 use std::mem::{transmute};
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 use std::process::{exit};
 
 use libc::funcs::posix88::unistd;
 use libc::funcs::posix88::stdio::{fileno};
 use libc::funcs::c95::stdio;
-pub use libc::{uid_t, gid_t};
+pub use libc::{uid_t, gid_t, c_int};
 
 use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name, umask};
 
@@ -38,7 +35,7 @@ quick_error! {
             description("unable to fork")
         }
         /// Unable to create new session
-        DetachSession(errno: libc::c_int) {
+        DetachSession(errno: c_int) {
             description("unable to create new session")
         }
         /// Group not found
@@ -46,7 +43,7 @@ quick_error! {
             description("group not found")
         }
         /// Unable to set group
-        SetGroup(errno: libc::c_int) {
+        SetGroup(errno: c_int) {
             description("unable to set group")
         }
         /// User not found
@@ -54,7 +51,7 @@ quick_error! {
             description("user not found")
         }
         /// Unable to set user
-        SetUser(errno: libc::c_int) {
+        SetUser(errno: c_int) {
             description("unable to set user")
         }
         /// Unable to change directory
@@ -66,19 +63,23 @@ quick_error! {
             description("pid_file option contains NUL")
         }
         /// Unable to open pid file
-        UnableOpenPidfile {
+        OpenPidfile {
             description("unable to open pid file")
         }
         /// Unable to lock pid file
-        UnableLockPidfile(errno: libc::c_int) {
+        LockPidfile(errno: c_int) {
             description("unable to lock pid file")
         }
+        /// Unable to chown pid file
+        ChownPidfile(errno: c_int) {
+            description("unable to chown pid file")
+        }
         /// Unable to redirect standard streams to /dev/null
-        UnableRedirectStreams(errno: libc::c_int) {
+        RedirectStreams(errno: c_int) {
             description("unable to redirect standard streams to /dev/null")
         }
         /// Unable to write self pid to pid file
-        UnableWritePid {
+        WritePid {
             description("unable to write self pid to pid file")
         }
     }
@@ -123,71 +124,63 @@ impl From<gid_t> for Group {
 }
 
 // #[derive(Debug)]
-pub struct Daemonize<'a, T> {
-    name: &'a str,
-    directory: &'a Path,
-
-    pid_file: Option<&'a Path>,
+pub struct Daemonize<T> {
+    directory: PathBuf,
+    pid_file: Option<PathBuf>,
+    chown_pid_file: bool,
     user: Option<User>,
     group: Option<Group>,
     privileged_action: Box<Fn() -> T>
 }
 
-impl<'a> Daemonize<'a, ()> {
+impl Daemonize<()> {
 
-    pub fn new(name: &'a str) -> Self {
+    pub fn new() -> Self {
         Daemonize {
-            name: name,
-            directory: &Path::new("/"),
+            directory: Path::new("/").to_owned(),
             pid_file: None,
+            chown_pid_file: true,
             user: None,
             group: None,
-            privileged_action: Box::new(|| ())
+            privileged_action: Box::new(|| ()),
         }
     }
 }
 
-impl<'a, T> Daemonize<'a, T> {
+impl<T> Daemonize<T> {
 
-    pub fn set_pid_file<F: AsRef<Path>>(mut self, s: &'a F) -> Self {
-        self.pid_file = Some(s.as_ref());
+    pub fn pid_file<F: AsRef<Path>>(mut self, path: F) -> Self {
+        self.pid_file = Some(path.as_ref().to_owned());
         self
     }
 
-    pub fn set_working_directory<F: AsRef<Path>>(mut self, s: &'a F) -> Self {
-        self.directory = s.as_ref();
+    pub fn chown_pid_file(mut self, chown: bool) -> Self {
+        self.chown_pid_file = chown;
         self
     }
 
-    pub fn set_user<U: Into<User>>(mut self, user: U) -> Self {
+    pub fn working_directory<F: AsRef<Path>>(mut self, path: F) -> Self {
+        self.directory = path.as_ref().to_owned();
+        self
+    }
+
+    pub fn user<U: Into<User>>(mut self, user: U) -> Self {
         self.user = Some(user.into());
         self
     }
 
-    pub fn set_group<G: Into<Group>>(mut self, group: G) -> Self {
+    pub fn group<G: Into<Group>>(mut self, group: G) -> Self {
         self.group = Some(group.into());
         self
     }
 
-    pub fn set_privileged_action<N>(self, action: Box<Fn() -> N>) -> Daemonize<'a, N> {
-        let mut new: Daemonize<'a, N> = unsafe { transmute(self) };
-        new.privileged_action = action;
+    pub fn privileged_action<N, F: Fn() -> N + Sized + 'static>(self, action: F) -> Daemonize<N> {
+        let mut new: Daemonize<N> = unsafe { transmute(self) };
+        new.privileged_action = Box::new(action);
         new
     }
 
     pub fn start(self) -> std::result::Result<T, DaemonizeError> {
-        let name = self.name;
-
-        match self.inner_start() {
-            Ok(t) => Ok(t),
-            Err(t) => {
-                error!(target: name, "{}", t.description());
-                Err(t)
-            }
-        }
-    }
-
-    fn inner_start(self) -> std::result::Result<T, DaemonizeError> {
         /// Maps an Option<T> to Option<U> by applying a function Fn(T) -> U to a contained value
         /// and try! it's result
         macro_rules! maptry {
@@ -200,7 +193,7 @@ impl<'a, T> Daemonize<'a, T> {
         }
 
         unsafe {
-            let pid_file_fd = maptry!(self.pid_file, create_pid_file);
+            let pid_file_fd = maptry!(self.pid_file.clone(), create_pid_file);
 
             try!(perform_fork());
             try!(set_sid());
@@ -211,10 +204,26 @@ impl<'a, T> Daemonize<'a, T> {
 
             try!(set_current_dir(self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
 
+            let uid = maptry!(self.user, get_user);
+            let gid = maptry!(self.group, get_group);
+
+            if self.chown_pid_file {
+                let args: Option<(PathBuf, uid_t, gid_t)> = match (self.pid_file, gid, uid) {
+                    (Some(pid), Some(uid), Some(gid)) => Some((pid, uid, gid)),
+                    (Some(pid), None, Some(gid)) => Some((pid, uid_t::max_value() - 1, gid)),
+                    (Some(pid), Some(uid), None) => Some((pid, uid, gid_t::max_value() - 1)),
+                    // Or pid file is not provided, or both user and group
+                    _ => None
+                };
+
+                maptry!(args, |(pid, uid, gid)| chown_pid_file(pid, uid, gid));
+            }
+
             let privileged_action_result = (self.privileged_action)();
 
-            maptry!(self.group, set_group);
-            maptry!(self.user, set_user);
+            maptry!(uid, set_user);
+            maptry!(gid, set_group);
+
             maptry!(pid_file_fd, write_pid_file);
 
             Ok(privileged_action_result)
@@ -242,16 +251,19 @@ unsafe fn redirect_standard_streams() -> Result<()> {
     macro_rules! for_every_stream {
         ($expr:expr) => (
             for stream in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO].iter() {
-                tryret!($expr(*stream), (), DaemonizeError::UnableRedirectStreams);
+                tryret!($expr(*stream), (), DaemonizeError::RedirectStreams);
             }
         )
     }
     for_every_stream!(unistd::close);
 
-    let devnull_file = stdio::fopen(b"/dev/null" as *const u8 as *const i8,
-                                    b"w+" as *const u8 as *const i8);
+    let devnull_path_ptr = try!(create_path("/dev/null"));
+
+
+    let devnull_file = stdio::fopen(devnull_path_ptr,
+                                    b"w+" as *const u8 as *const libc::c_char);
     if devnull_file.is_null() {
-        return Err(DaemonizeError::UnableRedirectStreams(libc::ENOENT))
+        return Err(DaemonizeError::RedirectStreams(libc::ENOENT))
     };
 
     let devnull_fd = fileno(devnull_file);
@@ -260,49 +272,53 @@ unsafe fn redirect_standard_streams() -> Result<()> {
     Ok(())
 }
 
-unsafe fn set_group(group: Group) -> Result<()> {
+unsafe fn get_group(group: Group) -> Result<gid_t> {
     match group {
-        Group::Id(id) => {
-            tryret!(unistd::setgid(id), Ok(()), DaemonizeError::SetGroup)
-        },
+        Group::Id(id) => Ok(id),
         Group::Name(name) => {
             match get_gid_by_name(&name) {
-                Some(id) => set_group(Group::Id(id)),
+                Some(id) => get_group(Group::Id(id)),
                 None => Err(DaemonizeError::GroupNotFound)
             }
         }
     }
 }
 
-unsafe fn set_user(user: User) -> Result<()> {
+unsafe fn set_group(group: gid_t) -> Result<()> {
+    tryret!(unistd::setgid(group), Ok(()), DaemonizeError::SetGroup)
+}
+
+unsafe fn get_user(user: User) -> Result<uid_t> {
     match user {
-        User::Id(id) => {
-            tryret!(unistd::setuid(id), Ok(()), DaemonizeError::SetUser)
-        },
+        User::Id(id) => Ok(id),
         User::Name(name) => {
             match get_uid_by_name(&name) {
-                Some(id) => set_user(User::Id(id)),
+                Some(id) => get_user(User::Id(id)),
                 None => Err(DaemonizeError::UserNotFound)
             }
         }
     }
 }
 
-unsafe fn create_pid_file(path: &Path) -> Result<libc::c_int> {
-    let path_cstring = try!({
-        match CString::new(path.as_os_str().to_owned().into_vec()) {
-            Ok(s) => Ok(s),
-            Err(_) => Err(DaemonizeError::PathContainsNull),
-        }
-    });
-    let path_ptr = path_cstring.as_ptr();
-    let f = stdio::fopen(path_ptr, b"w" as *const u8 as *const i8);
+unsafe fn set_user(user: uid_t) -> Result<()> {
+    tryret!(unistd::setuid(user), Ok(()), DaemonizeError::SetUser)
+}
+
+unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
+    let path_ptr = try!(create_path(path));
+
+    let f = stdio::fopen(path_ptr, b"w" as *const u8 as *const libc::c_char);
     if f.is_null() {
-        return Err(DaemonizeError::UnableOpenPidfile)
+        return Err(DaemonizeError::OpenPidfile)
     }
 
     let fd = fileno(f);
-    tryret!(flock(fd, 10), Ok(fd), DaemonizeError::UnableLockPidfile)
+    tryret!(flock(fd, 10), Ok(fd), DaemonizeError::LockPidfile)
+}
+
+unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
+    let path_ptr = try!(create_path(path));
+    tryret!(libc::chown(path_ptr, uid, gid), Ok(()), DaemonizeError::ChownPidfile)
 }
 
 unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
@@ -311,8 +327,13 @@ unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
     let pid_length = pid_string.len() as u64;
     let pid_buf = CString::new(pid_string.into_bytes()).unwrap().as_ptr() as *const libc::c_void;
     if unistd::write(fd, pid_buf, pid_length) < pid_length as i64 {
-        Err(DaemonizeError::UnableWritePid)
+        Err(DaemonizeError::WritePid)
     } else {
         Ok(())
     }
+}
+
+unsafe fn create_path<F: AsRef<Path>>(path: F) -> Result<*const libc::c_char> {
+    let path_cstring = try!(CString::new(path.as_ref().as_os_str().to_owned().into_vec()).map_err(|_| DaemonizeError::PathContainsNull));
+    Ok(path_cstring.as_ptr())
 }

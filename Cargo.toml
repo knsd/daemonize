@@ -9,5 +9,8 @@ documentation = "https://knsd.github.io/daemonize"
 
 [dependencies]
 libc = "*"
-log = "*"
 quick-error = "0.1.4"
+
+[dev-dependencies]
+log = "*"
+syslog = "3.1.0"

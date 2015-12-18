@@ -1,16 +1,17 @@
 extern crate daemonize;
+extern crate syslog;
+#[macro_use] extern crate log;
 
-use std::path::{Path};
-
-use daemonize::{DaemonOptions, User, Group, daemonize};
+use daemonize::{Daemonize};
 
 fn main() {
-    let res = daemonize(DaemonOptions{
-        pid_file: Some(Path::new("/tmp/test.pid")),
-        directory: None,
-        user: Some(User::Name("nobody")),
-        group: Some(Group::Id(10)),
-    }, &(| | {println!("before drop");}));
-
-    println!("after drop, res: {:?}", res);
+    println!("{:?}", syslog::init(syslog::Facility::LOG_USER, log::LogLevelFilter::Debug, Some("test")));
+    let result = Daemonize::new().pid_file("/tmp/test.pid")
+                                 .privileged_action(|| println!("foo"))
+                                 .chown_pid_file(false)
+                                 .working_directory("/tmp/")
+                                 // .user(10050)
+                                 // .group("nobody")
+                                 .start();
+    error!("test, {:?}", result);
 }
