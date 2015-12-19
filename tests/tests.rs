@@ -1,4 +1,5 @@
 extern crate tempdir;
+extern crate libc;
 
 use std::io::prelude::*;
 
@@ -61,4 +62,21 @@ fn double_run() {
         std::fs::File::open(second_result).unwrap().read_to_string(&mut data).unwrap();
         assert!(data == "error")
     }
+}
+
+#[test]
+fn test_uid_gid() {
+    let tmpdir = TempDir::new("uid_gid").unwrap();
+    let result_file = tmpdir.path().join("result");
+
+    let mut cmd = std::process::Command::new("target/debug/examples/uid_gid");
+    cmd.arg("nobody").arg("daemon").arg(&result_file);
+    cmd.status().unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    let own_uid_gid_string = unsafe { format!("{} {}", libc::getuid(), libc::getgid()) };
+
+    let mut data = String::new();
+    std::fs::File::open(result_file).unwrap().read_to_string(&mut data).unwrap();
+    assert!(!data.is_empty());
+    assert!(data != own_uid_gid_string)
 }

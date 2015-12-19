@@ -6,3 +6,5 @@ rust:
 notifications:
     webhooks:
         - http://tg.thesharp.org:8888/travis
+script: cargo build --verbose && sudo cargo test --verbose
+sudo: true

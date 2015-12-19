@@ -12,4 +12,3 @@ fn main() {
     Daemonize::new().working_directory(chdir).start().unwrap();
     std::fs::File::create(file).unwrap().write_all(b"test").unwrap();
 }
-

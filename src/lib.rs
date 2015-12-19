@@ -110,6 +110,12 @@ impl From<uid_t> for User {
     }
 }
 
+impl<'a> From<&'a String> for User {
+    fn from(t: &'a String) -> User {
+        User::Name(t.clone())
+    }
+}
+
 #[derive(Debug)]
 pub enum Group {
     Name(String),
@@ -119,6 +125,12 @@ pub enum Group {
 impl<'a> From<&'a str> for Group {
     fn from(t: &'a str) -> Group {
         Group::Name(t.to_string())
+    }
+}
+
+impl<'a> From<&'a String> for Group {
+    fn from(t: &'a String) -> Group {
+        Group::Name(t.clone())
     }
 }
 
@@ -226,8 +238,8 @@ impl<T> Daemonize<T> {
 
             let privileged_action_result = (self.privileged_action)();
 
-            maptry!(uid, set_user);
             maptry!(gid, set_group);
+            maptry!(uid, set_user);
 
             maptry!(pid_file_fd, write_pid_file);
 
