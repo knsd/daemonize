@@ -19,7 +19,7 @@ rust:
 # load travis-cargo
 before_script:
   - |
-      pip install 'travis-cargo<0.2'
+      sudo pip install 'travis-cargo<0.2'
 
 # the main build
 script:
