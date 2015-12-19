@@ -186,8 +186,8 @@ impl<T> Daemonize<T> {
     }
 
     pub fn start(self) -> std::result::Result<T, DaemonizeError> {
-        /// Maps an Option<T> to Option<U> by applying a function Fn(T) -> U to a contained value
-        /// and try! it's result
+        // Maps an Option<T> to Option<U> by applying a function Fn(T) -> U to a contained value
+        // and try! it's result
         macro_rules! maptry {
             ($expr:expr, $f: expr) => (
                 match $expr {
