@@ -10,7 +10,7 @@ use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
 
-pub use libc::{LOCK_EX, uid_t, gid_t, c_int, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2};
+pub use libc::{LOCK_EX, LOCK_NB, uid_t, gid_t, c_int, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2};
 
 use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name, umask};
 
@@ -320,7 +320,7 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
     }
 
     let fd = fileno(f);
-    tryret!(flock(fd, LOCK_EX), Ok(fd), DaemonizeError::LockPidfile)
+    tryret!(flock(fd, LOCK_EX | LOCK_NB), Ok(fd), DaemonizeError::LockPidfile)
 }
 
 unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
