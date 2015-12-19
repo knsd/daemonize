@@ -65,6 +65,7 @@ fn double_run() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn test_uid_gid() {
     let tmpdir = TempDir::new("uid_gid").unwrap();
     let result_file = tmpdir.path().join("result");
