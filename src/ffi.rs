@@ -68,13 +68,13 @@ pub unsafe fn get_uid_by_name(name: &CString) -> Option<libc::uid_t> {
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]
 unsafe fn nobody_uid_gid() -> libc::uid_t {
-    (u32::max_value() - 1) as libc::uid_t
+    (u16::max_value() - 1) as libc::uid_t
 }
 
 #[cfg(target_os = "macos")]
 #[allow(dead_code)]
 unsafe fn nobody_uid_gid() -> libc::uid_t {
-    (u64::max_value() - 1) as libc::uid_t
+    (u32::max_value() - 1) as libc::uid_t
 }
 
 #[test]
