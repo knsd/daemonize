@@ -157,7 +157,7 @@ impl Daemonize<()> {
         Daemonize {
             directory: Path::new("/").to_owned(),
             pid_file: None,
-            chown_pid_file: true,
+            chown_pid_file: false,
             user: None,
             group: None,
             privileged_action: Box::new(|| ()),
@@ -226,7 +226,7 @@ impl<T> Daemonize<T> {
             let gid = maptry!(self.group, get_group);
 
             if self.chown_pid_file {
-                let args: Option<(PathBuf, uid_t, gid_t)> = match (self.pid_file, gid, uid) {
+                let args: Option<(PathBuf, uid_t, gid_t)> = match (self.pid_file, uid, gid) {
                     (Some(pid), Some(uid), Some(gid)) => Some((pid, uid, gid)),
                     (Some(pid), None, Some(gid)) => Some((pid, uid_t::max_value() - 1, gid)),
                     (Some(pid), Some(uid), None) => Some((pid, uid, gid_t::max_value() - 1)),

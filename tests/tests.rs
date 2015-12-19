@@ -81,3 +81,16 @@ fn test_uid_gid() {
     assert!(!data.is_empty());
     assert!(data != own_uid_gid_string)
 }
+
+// Manual test only for now
+// #[test]
+// #[cfg(target_os = "macos")]
+// fn test_chown_pid() {
+//     let tmpdir = TempDir::new("chown_pid").unwrap();
+//     let pid_file = tmpdir.path().join("pid");
+
+//     let mut cmd = std::process::Command::new("target/debug/examples/chown_pid");
+//     cmd.arg("nobody").arg("daemon").arg(&pid_file);
+//     cmd.status().unwrap();
+//     std::thread::sleep(std::time::Duration::from_millis(100));
+// }
