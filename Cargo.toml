@@ -8,9 +8,10 @@ repository = "https://github.com/knsd/daemonize/"
 documentation = "https://knsd.github.io/daemonize"
 
 [dependencies]
-libc = "*"
+libc = "0.2.4"
 quick-error = "0.1.4"
 
 [dev-dependencies]
-log = "*"
+log = "0.3.4"
 syslog = "3.1.0"
+tempdir = "0.3.4"

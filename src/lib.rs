@@ -10,10 +10,7 @@ use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
 
-use libc::funcs::posix88::unistd;
-use libc::funcs::posix88::stdio::{fileno};
-use libc::funcs::c95::stdio;
-pub use libc::{uid_t, gid_t, c_int};
+pub use libc::{uid_t, gid_t, c_int, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2};
 
 use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name, umask};
 
@@ -42,6 +39,10 @@ quick_error! {
         GroupNotFound {
             description("group not found")
         }
+        /// group option contains NUL
+        GroupContainsNul {
+            description("group option contains NUL")
+        }
         /// Unable to set group
         SetGroup(errno: c_int) {
             description("unable to set group")
@@ -49,6 +50,10 @@ quick_error! {
         /// User not found
         UserNotFound {
             description("user not found")
+        }
+        /// user option contains NUL
+        UserContainsNul {
+            description("user option contains NUL")
         }
         /// Unable to set user
         SetUser(errno: c_int) {
@@ -58,8 +63,8 @@ quick_error! {
         ChangeDirectory {
             description("unable to change directory")
         }
-        /// pid_file options contains NUL
-        PathContainsNull {
+        /// pid_file option contains NUL
+        PathContainsNul {
             description("pid_file option contains NUL")
         }
         /// Unable to open pid file
@@ -233,7 +238,7 @@ impl<T> Daemonize<T> {
 }
 
 unsafe fn perform_fork() -> Result<()> {
-    let pid = unistd::fork();
+    let pid = fork();
     if pid < 0 {
         Err(DaemonizeError::Fork)
     } else if pid == 0 {
@@ -244,7 +249,7 @@ unsafe fn perform_fork() -> Result<()> {
 }
 
 unsafe fn set_sid() -> Result<()> {
-    tryret!(unistd::setsid(), Ok(()), DaemonizeError::DetachSession)
+    tryret!(setsid(), Ok(()), DaemonizeError::DetachSession)
 }
 
 unsafe fn redirect_standard_streams() -> Result<()> {
@@ -255,19 +260,19 @@ unsafe fn redirect_standard_streams() -> Result<()> {
             }
         )
     }
-    for_every_stream!(unistd::close);
+    for_every_stream!(close);
 
     let devnull_path_ptr = try!(create_path("/dev/null"));
 
 
-    let devnull_file = stdio::fopen(devnull_path_ptr,
+    let devnull_file = fopen(devnull_path_ptr,
                                     b"w+" as *const u8 as *const libc::c_char);
     if devnull_file.is_null() {
         return Err(DaemonizeError::RedirectStreams(libc::ENOENT))
     };
 
     let devnull_fd = fileno(devnull_file);
-    for_every_stream!(|stream| unistd::dup2(devnull_fd, stream));
+    for_every_stream!(|stream| dup2(devnull_fd, stream));
 
     Ok(())
 }
@@ -276,7 +281,8 @@ unsafe fn get_group(group: Group) -> Result<gid_t> {
     match group {
         Group::Id(id) => Ok(id),
         Group::Name(name) => {
-            match get_gid_by_name(&name) {
+            let s = try!(CString::new(name).map_err(|_| DaemonizeError::GroupContainsNul));
+            match get_gid_by_name(&s) {
                 Some(id) => get_group(Group::Id(id)),
                 None => Err(DaemonizeError::GroupNotFound)
             }
@@ -285,14 +291,15 @@ unsafe fn get_group(group: Group) -> Result<gid_t> {
 }
 
 unsafe fn set_group(group: gid_t) -> Result<()> {
-    tryret!(unistd::setgid(group), Ok(()), DaemonizeError::SetGroup)
+    tryret!(setgid(group), Ok(()), DaemonizeError::SetGroup)
 }
 
 unsafe fn get_user(user: User) -> Result<uid_t> {
     match user {
         User::Id(id) => Ok(id),
         User::Name(name) => {
-            match get_uid_by_name(&name) {
+            let s = try!(CString::new(name).map_err(|_| DaemonizeError::UserContainsNul));
+            match get_uid_by_name(&s) {
                 Some(id) => get_user(User::Id(id)),
                 None => Err(DaemonizeError::UserNotFound)
             }
@@ -301,13 +308,13 @@ unsafe fn get_user(user: User) -> Result<uid_t> {
 }
 
 unsafe fn set_user(user: uid_t) -> Result<()> {
-    tryret!(unistd::setuid(user), Ok(()), DaemonizeError::SetUser)
+    tryret!(setuid(user), Ok(()), DaemonizeError::SetUser)
 }
 
 unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
     let path_ptr = try!(create_path(path));
 
-    let f = stdio::fopen(path_ptr, b"w" as *const u8 as *const libc::c_char);
+    let f = fopen(path_ptr, b"w" as *const u8 as *const libc::c_char);
     if f.is_null() {
         return Err(DaemonizeError::OpenPidfile)
     }
@@ -322,11 +329,11 @@ unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
 }
 
 unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
-    let pid = unistd::getpid();
+    let pid = getpid();
     let pid_string = format!("{}", pid);
-    let pid_length = pid_string.len() as u64;
+    let pid_length = pid_string.len() as usize;
     let pid_buf = CString::new(pid_string.into_bytes()).unwrap().as_ptr() as *const libc::c_void;
-    if unistd::write(fd, pid_buf, pid_length) < pid_length as i64 {
+    if write(fd, pid_buf, pid_length) < pid_length as isize {
         Err(DaemonizeError::WritePid)
     } else {
         Ok(())
@@ -334,6 +341,6 @@ unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
 }
 
 unsafe fn create_path<F: AsRef<Path>>(path: F) -> Result<*const libc::c_char> {
-    let path_cstring = try!(CString::new(path.as_ref().as_os_str().to_owned().into_vec()).map_err(|_| DaemonizeError::PathContainsNull));
+    let path_cstring = try!(CString::new(path.as_ref().as_os_str().to_owned().into_vec()).map_err(|_| DaemonizeError::PathContainsNul));
     Ok(path_cstring.as_ptr())
 }

@@ -1,5 +1,7 @@
 extern crate libc;
 
+use std::ffi::{CString};
+
 #[repr(C)]
 #[allow(dead_code)]
 struct passwd {
@@ -18,12 +20,12 @@ struct group {
     gr_name:   *const libc::c_char,
     gr_passwd: *const libc::c_char,
     gr_gid:    libc::gid_t,
-    gr_mem:    *const [*const libc::c_char],
+    gr_mem:    *const *const libc::c_char,
 }
 
 extern {
-    fn getgrnam(name: *const str) -> *const group;
-    fn getpwnam(name: *const str) -> *const passwd;
+    fn getgrnam(name: *const libc::c_char) -> *const group;
+    fn getpwnam(name: *const libc::c_char) -> *const passwd;
     pub fn umask(mask: libc::mode_t) -> libc::mode_t;
     pub fn flock(fd: libc::c_int, operation: libc::c_int) -> libc::c_int;
 }
@@ -43,9 +45,8 @@ pub unsafe fn errno() -> libc::c_int {
     *errno_location()
 }
 
-pub unsafe fn get_gid_by_name(name: &str) -> Option<libc::gid_t> {
-    let rname: *const str = name;
-    let ptr = getgrnam(rname);
+pub unsafe fn get_gid_by_name(name: &CString) -> Option<libc::gid_t> {
+    let ptr = getgrnam(name.as_ptr() as *const libc::c_char);
     if ptr.is_null() {
         None
     } else {
@@ -54,13 +55,33 @@ pub unsafe fn get_gid_by_name(name: &str) -> Option<libc::gid_t> {
     }
 }
 
-pub unsafe fn get_uid_by_name(name: &str) -> Option<libc::uid_t> {
-    let rname: *const str = name;
-    let ptr = getpwnam(rname);
+pub unsafe fn get_uid_by_name(name: &CString) -> Option<libc::uid_t> {
+    let ptr = getpwnam(name.as_ptr() as *const libc::c_char);
     if ptr.is_null() {
         None
     } else {
         let ref s = *ptr;
         Some(s.pw_uid)
+    }
+}
+
+#[test]
+fn test_get_gid_by_name() {
+    let group_name = ::std::ffi::CString::new(match ::std::fs::metadata("/etc/debian_version") {
+        Ok(_) => "nogroup",
+        Err(_) => "nobody",
+    }).unwrap();
+    unsafe {
+        let gid = get_gid_by_name(&group_name);
+        assert_eq!(gid, Some(libc::gid_t::max_value() -1))
+    }
+}
+
+#[test]
+fn test_get_uid_by_name() {
+    let user_name = ::std::ffi::CString::new("nobody").unwrap();
+    unsafe {
+        let uid = get_uid_by_name(&user_name);
+        assert_eq!(uid.unwrap(), libc::gid_t::max_value() -1)
     }
 }
