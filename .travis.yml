@@ -1,4 +1,4 @@
-sudo: true
+sudo: required
 language: rust
 # necessary for `travis-cargo coveralls --no-sudo`
 addons:
