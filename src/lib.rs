@@ -10,7 +10,8 @@ use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
 
-pub use libc::{LOCK_EX, LOCK_NB, uid_t, gid_t, c_int, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2};
+pub use libc::{uid_t, gid_t, c_int};
+use libc::{LOCK_EX, LOCK_NB, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2};
 
 use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name, umask};
 

@@ -34,7 +34,9 @@ after_success:
 
 env:
   global:
-    # override the default `--features unstable` used for the nightly branch (optional)
-    - TRAVIS_CARGO_NIGHTLY_FEATURE=nightly
     # encrypted github token for doc upload (see `GH_TOKEN` link above)
     - secure: "KiqojVvSvs6KXQ9PEC2O1X6ExR89Ms+V+W9EzL5bdkfgAREDbzt5fCzS297gLZAWe6SAeRmYMeiCyU2XPp3tVn5udwaBbi2N69VGFTxwhR41j/uIEniu2GJAdPvsdRVCOosdQzpOdxHwE1NV5iTZiBHN2fx+qOHxVitCI4PhkxPJOuF+bHbDJaYP7VsIj/KzmWGyH2R9lX0MIerqCwhlLS1Qd0poxZgDypbFPyZ+y05TZqLkxMWBPsfiIUVA8VY+1BK/0Z19vaJ4Ng3M4/yT1mawlGn2AbfbvACqfZgkb5e8ei+32IGAVMpyaooU4kyqWJ60JoBnCdZ69McJU3Q+Yrszx7tTbCM56FY3eZ4W+/AH6H6E5owbRM05lc9CdfrpF2lJ0fB+rerIpuVVAf+RKvOhll8K38T9AF9D7a+2z8tt2WO3D8Ynyf+S9zmIvLc6iX5Xdx0Ptn9ivD5q50sqLGiMsR7gqMToVdKjBbWqcymCb8zRW4bX6GP3n5BAIAnBbvMAOCDgEzD5aRzDlRIE4KlCAto02Nuy7dvMYv47eRTYr9ljiy+2bpayGVi0hxxUf1zkHZZQYgLQkSNuiZcSptEVRWaZgLY0TNeotbylmA5yxliXwLfDMcb6B6XhYNgp64wYTRVabZuxzBM/L3c+IdqjtqoyuziMonLnqHQmZmk="
+
+notifications:
+    webhooks:
+        - http://tg.thesharp.org:8888/travis
