@@ -65,6 +65,18 @@ pub unsafe fn get_uid_by_name(name: &CString) -> Option<libc::uid_t> {
     }
 }
 
+#[cfg(target_os = "linux")]
+#[allow(dead_code)]
+unsafe fn nobody_uid_gid() -> libc::uid_t {
+    (u32::max_value() - 1) as libc::uid_t
+}
+
+#[cfg(target_os = "macos")]
+#[allow(dead_code)]
+unsafe fn nobody_uid_gid() -> libc::uid_t {
+    (u64::max_value() - 1) as libc::uid_t
+}
+
 #[test]
 fn test_get_gid_by_name() {
     let group_name = ::std::ffi::CString::new(match ::std::fs::metadata("/etc/debian_version") {
@@ -73,7 +85,7 @@ fn test_get_gid_by_name() {
     }).unwrap();
     unsafe {
         let gid = get_gid_by_name(&group_name);
-        assert_eq!(gid, Some(libc::gid_t::max_value() -1))
+        assert_eq!(gid, Some(nobody_uid_gid()))
     }
 }
 
@@ -82,6 +94,6 @@ fn test_get_uid_by_name() {
     let user_name = ::std::ffi::CString::new("nobody").unwrap();
     unsafe {
         let uid = get_uid_by_name(&user_name);
-        assert_eq!(uid.unwrap(), libc::gid_t::max_value() -1)
+        assert_eq!(uid, Some(nobody_uid_gid()))
     }
 }
