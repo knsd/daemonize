@@ -19,14 +19,13 @@ rust:
 # load travis-cargo
 before_script:
   - |
-      pip install 'travis-cargo<0.2' --user &&
-      export PATH=$HOME/.local/bin:$PATH
+      pip install 'travis-cargo<0.2'
 
 # the main build
 script:
   - |
       travis-cargo build &&
-      sudo /home/travis/.local/bin/travis-cargo test &&
+      travis-cargo test &&
       travis-cargo --only stable doc
 after_success:
   # upload the documentation from the build with stable (automatically only actually
