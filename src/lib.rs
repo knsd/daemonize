@@ -278,8 +278,7 @@ unsafe fn redirect_standard_streams() -> Result<()> {
     let devnull_path_ptr = try!(create_path("/dev/null"));
 
 
-    let devnull_file = fopen(devnull_path_ptr,
-                                    b"w+" as *const u8 as *const libc::c_char);
+    let devnull_file = fopen(devnull_path_ptr, b"w+" as *const u8 as *const libc::c_char);
     if devnull_file.is_null() {
         return Err(DaemonizeError::RedirectStreams(libc::ENOENT))
     };
