@@ -1,5 +1,7 @@
 //!
-//! daemonize is a library for writing system daemons.
+//! daemonize is a library for writing system daemons. Inspired by the Python library [thesharp/daemonize](https://github.com/thesharp/daemonize).
+//!
+//! The documentation is located at http://knsd.github.io/daemonize/.
 //!
 //! Usage example:
 //!
@@ -18,7 +20,7 @@
 //!                                     .group(2) // Or group id
 //!                                     .privileged_action(|| "Executed before drop privileges");
 //!      match daemonize.start() {
-//!          Ok(_) => info!("Success"),
+//!          Ok(_) => info!(""Success, daemonized""),
 //!          Err(e) => error!("{}", e),
 //!      }
 //!  }
@@ -67,7 +69,7 @@ quick_error! {
         GroupNotFound {
             description("group not found")
         }
-        /// group option contains NUL
+        /// Group option contains NUL
         GroupContainsNul {
             description("group option contains NUL")
         }
@@ -79,7 +81,7 @@ quick_error! {
         UserNotFound {
             description("user not found")
         }
-        /// user option contains NUL
+        /// User option contains NUL
         UserContainsNul {
             description("user option contains NUL")
         }
@@ -210,13 +212,13 @@ impl Daemonize<()> {
 
 impl<T> Daemonize<T> {
 
-    /// Create pid-file at the `path`, lock it exclusive and write daemon pid.
+    /// Create pid-file at `path`, lock it exclusive and write daemon pid.
     pub fn pid_file<F: AsRef<Path>>(mut self, path: F) -> Self {
         self.pid_file = Some(path.as_ref().to_owned());
         self
     }
 
-    /// If `chown` is true daemonize, will change the pid-file ownership, if user or group are provided
+    /// If `chown` is true, daemonize will change the pid-file ownership, if user or group are provided
     pub fn chown_pid_file(mut self, chown: bool) -> Self {
         self.chown_pid_file = chown;
         self
@@ -240,7 +242,7 @@ impl<T> Daemonize<T> {
         self
     }
 
-    /// Execute `action` just before dropping privileges. Most common case is open listening socket.
+    /// Execute `action` just before dropping privileges. Most common usecase is to open listening socket.
     /// Result of `action` execution will be returned by `start` method.
     pub fn privileged_action<N, F: Fn() -> N + Sized + 'static>(self, action: F) -> Daemonize<N> {
         let mut new: Daemonize<N> = unsafe { transmute(self) };
