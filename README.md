@@ -1,4 +1,4 @@
-daemonize [![Build Status](https://travis-ci.org/knsd/daemonize.svg?branch=master)](https://travis-ci.org/knsd/daemonize)
+daemonize [![Build Status](https://travis-ci.org/knsd/daemonize.svg?branch=master)](https://travis-ci.org/knsd/daemonize) [![Latest Version](https://img.shields.io/crates/v/daemonize.svg)](https://crates.io/crates/daemonize/)
 =========
 
 
