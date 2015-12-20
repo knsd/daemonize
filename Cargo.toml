@@ -7,6 +7,7 @@ repository = "https://github.com/knsd/daemonize/"
 documentation = "http://knsd.github.io/daemonize/"
 readme = "README.md"
 description = "Library to enable your code run as a daemon process on Unix-like systems."
+keywords = ["daemon", "daemonize", "unix"]
 
 [dependencies]
 libc = "0.2.4"
