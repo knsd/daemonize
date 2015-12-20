@@ -214,13 +214,14 @@ impl<T> Daemonize<T> {
             let pid_file_fd = maptry!(self.pid_file.clone(), create_pid_file);
 
             try!(perform_fork());
-            try!(set_sid());
-
-            try!(redirect_standard_streams());
-
-            umask(0o027);
 
             try!(set_current_dir(self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
+            try!(set_sid());
+            umask(0o027);
+
+            try!(perform_fork());
+
+            try!(redirect_standard_streams());
 
             let uid = maptry!(self.user, get_user);
             let gid = maptry!(self.group, get_group);
