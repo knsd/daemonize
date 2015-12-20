@@ -175,7 +175,7 @@ impl From<gid_t> for Group {
 /// Daemonization options.
 ///
 /// Fork the process in the background, disassociate from its process group and the control terminal.
-/// Change umask value to `0o027`, redirect all standard streams to /dev/null. Change working
+/// Change umask value to `0o027`, redirect all standard streams to `/dev/null`. Change working
 /// directory to `/` or provided value.
 ///
 /// Optionally:
