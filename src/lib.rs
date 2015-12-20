@@ -141,6 +141,20 @@ impl From<gid_t> for Group {
     }
 }
 
+/// Daemonization options.
+///
+/// Fork the process in the background, disassociate from its process group and the control terminal.
+/// Change umask value to `0o027`, redirect all standard streams to /dev/null. Change working
+/// directory to `/` or provided value.
+///
+/// Optionally:
+///
+///   * maintain and lock the pid-file;
+///   * drop user privileges;
+///   * drop group privileges;
+///   * change the pid-file ownership to provided user (or / and) group;
+///   * execute any provided action just before dropping privileges.
+///
 // #[derive(Debug)]
 pub struct Daemonize<T> {
     directory: PathBuf,
@@ -167,37 +181,45 @@ impl Daemonize<()> {
 
 impl<T> Daemonize<T> {
 
+    /// Create pid-file at the `path`, lock it exclusive and write daemon pid.
     pub fn pid_file<F: AsRef<Path>>(mut self, path: F) -> Self {
         self.pid_file = Some(path.as_ref().to_owned());
         self
     }
 
+    /// If ``chown`` is true, change pid-file onwership to `user` and `group` if provided.
     pub fn chown_pid_file(mut self, chown: bool) -> Self {
         self.chown_pid_file = chown;
         self
     }
 
+    /// If chown is true daemonize will change the pid-file ownership if user or group are provided
     pub fn working_directory<F: AsRef<Path>>(mut self, path: F) -> Self {
         self.directory = path.as_ref().to_owned();
         self
     }
 
+    /// Drop privileges to `user`.
     pub fn user<U: Into<User>>(mut self, user: U) -> Self {
         self.user = Some(user.into());
         self
     }
 
+    /// Drop privileges to `group`.
     pub fn group<G: Into<Group>>(mut self, group: G) -> Self {
         self.group = Some(group.into());
         self
     }
 
+    /// Execute `action` just before dropping privileges. Most common case is open listening socket.
+    /// Result of `action` execution will be returned by `start` method.
     pub fn privileged_action<N, F: Fn() -> N + Sized + 'static>(self, action: F) -> Daemonize<N> {
         let mut new: Daemonize<N> = unsafe { transmute(self) };
         new.privileged_action = Box::new(action);
         new
     }
 
+    /// Start daemonization process.
     pub fn start(self) -> std::result::Result<T, DaemonizeError> {
         // Maps an Option<T> to Option<U> by applying a function Fn(T) -> U to a contained value
         // and try! it's result

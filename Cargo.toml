@@ -1,11 +1,12 @@
 [package]
 name = "daemonize"
 version = "0.0.1"
-authors = ["Fedor Gogolev <knsd@knsd.net>"]
 license = "MIT"
-homepage = "https://github.com/knsd/daemonize/"
+authors = ["Fedor Gogolev <knsd@knsd.net>"]
 repository = "https://github.com/knsd/daemonize/"
 documentation = "http://knsd.github.io/daemonize/"
+readme = "README.md"
+description = "Library to enable your code run as a daemon process on Unix-like systems."
 
 [dependencies]
 libc = "0.2.4"
