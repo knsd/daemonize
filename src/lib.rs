@@ -14,8 +14,8 @@
 //!                                     .chown_pid_file(true)
 //!                                     .working_directory("/tmp")
 //!                                     .user("nobody")
-//!                                     .group("daemon")
-//!                                     .group(2)
+//!                                     .group("daemon") // Group name
+//!                                     .group(2) // Or group id
 //!                                     .privileged_action(|| "Executed before drop privileges");
 //!      match daemonize.start() {
 //!          Ok(_) => info!("Success"),
