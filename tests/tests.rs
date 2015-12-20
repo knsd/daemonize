@@ -9,7 +9,7 @@ use tempdir::{TempDir};
 fn test_chdir() {
     let tmpdir = TempDir::new("chdir").unwrap();
 
-    let mut cmd = std::process::Command::new("target/debug/examples/chdir");
+    let mut cmd = std::process::Command::new("target/debug/examples/test_chdir");
     cmd.arg(tmpdir.path()).arg("test");
     cmd.status().unwrap();
     std::thread::sleep(std::time::Duration::from_millis(100));
@@ -24,7 +24,7 @@ fn test_pid() {
     let tmpdir = TempDir::new("chdir").unwrap();
     let pid_file = tmpdir.path().join("pid");
 
-    let mut cmd = std::process::Command::new("target/debug/examples/pid");
+    let mut cmd = std::process::Command::new("target/debug/examples/test_pid");
     cmd.arg(&pid_file);
     let mut child = cmd.spawn().unwrap();
     let child_pid = child.id();
@@ -45,7 +45,7 @@ fn double_run() {
     let second_result = tmpdir.path().join("second");
 
     for file in vec![&first_result, &second_result] {
-        let mut cmd = std::process::Command::new("target/debug/examples/double_run");
+        let mut cmd = std::process::Command::new("target/debug/examples/test_double_run");
         cmd.arg(&pid_file).arg(file);
         cmd.status().unwrap();
     }
@@ -70,7 +70,7 @@ fn test_uid_gid() {
     let tmpdir = TempDir::new("uid_gid").unwrap();
     let result_file = tmpdir.path().join("result");
 
-    let mut cmd = std::process::Command::new("target/debug/examples/uid_gid");
+    let mut cmd = std::process::Command::new("target/debug/examples/test_uid_gid");
     cmd.arg("nobody").arg("daemon").arg(&result_file);
     cmd.status().unwrap();
     std::thread::sleep(std::time::Duration::from_millis(100));
@@ -89,7 +89,7 @@ fn test_uid_gid() {
 //     let tmpdir = TempDir::new("chown_pid").unwrap();
 //     let pid_file = tmpdir.path().join("pid");
 
-//     let mut cmd = std::process::Command::new("target/debug/examples/chown_pid");
+//     let mut cmd = std::process::Command::new("target/debug/examples/test_chown_pid");
 //     cmd.arg("nobody").arg("daemon").arg(&pid_file);
 //     cmd.status().unwrap();
 //     std::thread::sleep(std::time::Duration::from_millis(100));
