@@ -1,3 +1,29 @@
+//!
+//! daemonize is a library for writing system daemons.
+//!
+//! Usage example:
+//!
+//! ```
+//! #[macro_use] extern crate log;
+//! extern crate daemonize;
+//!
+//! use daemonize::{Daemonize};
+//!
+//! fn main() {
+//!     let daemonize = Daemonize::new().pid_file("/tmp/test.pid")
+//!                                     .chown_pid_file(true)
+//!                                     .working_directory("/tmp")
+//!                                     .user("nobody")
+//!                                     .group("daemon")
+//!                                     .group(2)
+//!                                     .privileged_action(|| "Executed before drop privileges");
+//!      match daemonize.start() {
+//!          Ok(_) => info!("Success"),
+//!          Err(e) => error!("{}", e),
+//!      }
+//!  }
+//! ```
+
 mod ffi;
 
 extern crate libc;
@@ -26,6 +52,7 @@ macro_rules! tryret {
 }
 
 quick_error! {
+    /// This error type for `Daemonize` `start` method.
     #[derive(Debug)]
     pub enum DaemonizeError {
         /// Unable to fork
@@ -93,6 +120,7 @@ quick_error! {
 
 type Result<T> = std::result::Result<T, DaemonizeError>;
 
+/// Expects system user id or name. If name is provided it will be resolved to id later.
 #[derive(Debug)]
 pub enum User {
     Name(String),
@@ -117,6 +145,7 @@ impl<'a> From<&'a String> for User {
     }
 }
 
+/// Expects system group id or name. If name is provided it will be resolved to id later.
 #[derive(Debug)]
 pub enum Group {
     Name(String),
@@ -152,7 +181,7 @@ impl From<gid_t> for Group {
 ///   * maintain and lock the pid-file;
 ///   * drop user privileges;
 ///   * drop group privileges;
-///   * change the pid-file ownership to provided user (or / and) group;
+///   * change the pid-file ownership to provided user (and/or) group;
 ///   * execute any provided action just before dropping privileges.
 ///
 // #[derive(Debug)]
@@ -187,13 +216,13 @@ impl<T> Daemonize<T> {
         self
     }
 
-    /// If ``chown`` is true, change pid-file onwership to `user` and `group` if provided.
+    /// If `chown` is true daemonize, will change the pid-file ownership, if user or group are provided
     pub fn chown_pid_file(mut self, chown: bool) -> Self {
         self.chown_pid_file = chown;
         self
     }
 
-    /// If chown is true daemonize will change the pid-file ownership if user or group are provided
+    /// Change working directory to `path` or `/` by default.
     pub fn working_directory<F: AsRef<Path>>(mut self, path: F) -> Self {
         self.directory = path.as_ref().to_owned();
         self
