@@ -8,7 +8,7 @@ The documentation is located at http://knsd.github.io/daemonize/.
 
 Usage example:
 
-```
+```rust
 #[macro_use] extern crate log;
 extern crate daemonize;
 
