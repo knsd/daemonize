@@ -20,7 +20,7 @@
 //!                                     .group(2) // Or group id
 //!                                     .privileged_action(|| "Executed before drop privileges");
 //!      match daemonize.start() {
-//!          Ok(_) => info!(""Success, daemonized""),
+//!          Ok(_) => info!("Success, daemonized"),
 //!          Err(e) => error!("{}", e),
 //!      }
 //!  }
