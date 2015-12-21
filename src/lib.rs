@@ -31,6 +31,7 @@ mod ffi;
 extern crate libc;
 #[macro_use] extern crate quick_error;
 
+use std::fmt;
 use std::env::{set_current_dir};
 use std::ffi::{CString};
 use std::os::unix::ffi::OsStringExt;
@@ -57,7 +58,7 @@ pub type Errno = c_int;
 
 quick_error! {
     /// This error type for `Daemonize` `start` method.
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
     pub enum DaemonizeError {
         /// Unable to fork
         Fork {
@@ -125,7 +126,7 @@ quick_error! {
 type Result<T> = std::result::Result<T, DaemonizeError>;
 
 /// Expects system user id or name. If name is provided it will be resolved to id later.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum User {
     Name(String),
     Id(uid_t),
@@ -150,7 +151,7 @@ impl<'a> From<&'a String> for User {
 }
 
 /// Expects system group id or name. If name is provided it will be resolved to id later.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Group {
     Name(String),
     Id(gid_t),
@@ -188,14 +189,25 @@ impl From<gid_t> for Group {
 ///   * change the pid-file ownership to provided user (and/or) group;
 ///   * execute any provided action just before dropping privileges.
 ///
-// #[derive(Debug)]
 pub struct Daemonize<T> {
     directory: PathBuf,
     pid_file: Option<PathBuf>,
     chown_pid_file: bool,
     user: Option<User>,
     group: Option<Group>,
-    privileged_action: Box<Fn() -> T>
+    privileged_action: Box<Fn() -> T>,
+}
+
+impl<T> fmt::Debug for Daemonize<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Daemonize")
+            .field("directory", &self.directory)
+            .field("pid_file", &self.pid_file)
+            .field("chown_pid_file", &self.chown_pid_file)
+            .field("user", &self.user)
+            .field("group", &self.group)
+            .finish()
+    }
 }
 
 impl Daemonize<()> {
