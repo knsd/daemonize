@@ -9,6 +9,7 @@ Version 0.0.3
 Released on December 21, 2015
 
   * Add `Errno` type.
+  * Derive some standard traits for types.
 
 
 Version 0.0.2
