@@ -38,8 +38,8 @@ use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
 
-pub use libc::{uid_t, gid_t, c_int};
-use libc::{LOCK_EX, LOCK_NB, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2};
+pub use libc::{uid_t, gid_t};
+use libc::{LOCK_EX, LOCK_NB, c_int, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2};
 
 use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name, umask};
 
@@ -53,6 +53,8 @@ macro_rules! tryret {
     )
 }
 
+pub type Errno = c_int;
+
 quick_error! {
     /// This error type for `Daemonize` `start` method.
     #[derive(Debug)]
@@ -62,7 +64,7 @@ quick_error! {
             description("unable to fork")
         }
         /// Unable to create new session
-        DetachSession(errno: c_int) {
+        DetachSession(errno: Errno) {
             description("unable to create new session")
         }
         /// Group not found
@@ -74,7 +76,7 @@ quick_error! {
             description("group option contains NUL")
         }
         /// Unable to set group
-        SetGroup(errno: c_int) {
+        SetGroup(errno: Errno) {
             description("unable to set group")
         }
         /// User not found
@@ -86,7 +88,7 @@ quick_error! {
             description("user option contains NUL")
         }
         /// Unable to set user
-        SetUser(errno: c_int) {
+        SetUser(errno: Errno) {
             description("unable to set user")
         }
         /// Unable to change directory
@@ -102,15 +104,15 @@ quick_error! {
             description("unable to open pid file")
         }
         /// Unable to lock pid file
-        LockPidfile(errno: c_int) {
+        LockPidfile(errno: Errno) {
             description("unable to lock pid file")
         }
         /// Unable to chown pid file
-        ChownPidfile(errno: c_int) {
+        ChownPidfile(errno: Errno) {
             description("unable to chown pid file")
         }
         /// Unable to redirect standard streams to /dev/null
-        RedirectStreams(errno: c_int) {
+        RedirectStreams(errno: Errno) {
             description("unable to redirect standard streams to /dev/null")
         }
         /// Unable to write self pid to pid file
