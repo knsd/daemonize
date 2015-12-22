@@ -26,7 +26,6 @@ struct group {
 extern {
     fn getgrnam(name: *const libc::c_char) -> *const group;
     fn getpwnam(name: *const libc::c_char) -> *const passwd;
-    pub fn umask(mask: libc::mode_t) -> libc::mode_t;
     pub fn flock(fd: libc::c_int, operation: libc::c_int) -> libc::c_int;
 }
 
