@@ -144,12 +144,6 @@ impl From<uid_t> for User {
     }
 }
 
-impl<'a> From<&'a String> for User {
-    fn from(t: &'a String) -> User {
-        User::Name(t.clone())
-    }
-}
-
 /// Expects system group id or name. If name is provided it will be resolved to id later.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Group {
@@ -160,12 +154,6 @@ pub enum Group {
 impl<'a> From<&'a str> for Group {
     fn from(t: &'a str) -> Group {
         Group::Name(t.to_string())
-    }
-}
-
-impl<'a> From<&'a String> for Group {
-    fn from(t: &'a String) -> Group {
-        Group::Name(t.clone())
     }
 }
 
