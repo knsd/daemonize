@@ -1,6 +1,6 @@
 [package]
 name = "daemonize"
-version = "0.0.3"
+version = "0.1.0"
 license = "MIT"
 authors = ["Fedor Gogolev <knsd@knsd.net>"]
 repository = "https://github.com/knsd/daemonize/"
