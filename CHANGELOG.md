@@ -3,6 +3,13 @@ daemonize changelog
 
 Here you can see the full list of changes between each daemonize release.
 
+Version 0.1.1
+-------------
+
+Released on January 10, 2016
+
+  * Relicense under dual MIT/Apache-2.0
+
 Version 0.1.0
 -------------
 
