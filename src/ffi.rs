@@ -42,7 +42,7 @@ unsafe fn errno_location() -> *const libc::c_int {
     extern { fn __errno_location() -> *const libc::c_int; }
     __errno_location()
 }
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
 unsafe fn errno_location() -> *const libc::c_int {
     extern { fn __error() -> *const libc::c_int; }
     __error()
@@ -72,13 +72,13 @@ pub unsafe fn get_uid_by_name(name: &CString) -> Option<libc::uid_t> {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 #[allow(dead_code)]
 unsafe fn nobody_uid_gid() -> libc::uid_t {
     (u16::max_value() - 1) as libc::uid_t
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 #[allow(dead_code)]
 unsafe fn nobody_uid_gid() -> libc::uid_t {
     (u32::max_value() - 1) as libc::uid_t
