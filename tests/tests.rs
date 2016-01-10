@@ -6,7 +6,7 @@ use std::ffi::{OsStr};
 
 use tempdir::{TempDir};
 
-fn run<'a, S: AsRef<OsStr>>(cmd: S, args: &[S]) -> u32 {
+fn run<S: AsRef<OsStr>>(cmd: S, args: &[S]) -> u32 {
     let mut cmd = std::process::Command::new(cmd);
     for arg in args {
         cmd.arg(arg);
