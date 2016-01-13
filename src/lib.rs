@@ -130,6 +130,12 @@ quick_error! {
         WritePid {
             description("unable to write self pid to pid file")
         }
+        // Hints that destructuring should not be exhaustive.
+        // This enum may grow additional variants, so this makes sure clients
+        // don't count on exhaustive matching. Otherwise, adding a new variant
+        // could break existing code.
+        #[doc(hidden)]
+        __Nonexhaustive
     }
 }
 
