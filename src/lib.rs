@@ -20,18 +20,20 @@
 //! use daemonize::{Daemonize};
 //!
 //! fn main() {
-//!     let daemonize = Daemonize::new().pid_file("/tmp/test.pid")
-//!                                     .chown_pid_file(true)
-//!                                     .working_directory("/tmp")
-//!                                     .user("nobody")
-//!                                     .group("daemon") // Group name
-//!                                     .group(2) // Or group id
-//!                                     .privileged_action(|| "Executed before drop privileges");
-//!      match daemonize.start() {
-//!          Ok(_) => info!("Success, daemonized"),
-//!          Err(e) => error!("{}", e),
-//!      }
-//!  }
+//!     let daemonize = Daemonize::new()
+//!         .pid_file("/tmp/test.pid") // Every method except `new` and `start`
+//!         .chown_pid_file(true)      // is optional, see `Daemonize` documentation
+//!         .working_directory("/tmp") // for default behaviour.
+//!         .user("nobody")
+//!         .group("daemon") // Group name
+//!         .group(2)        // Or group id
+//!         .privileged_action(|| "Executed before drop privileges");
+//!
+//!     match daemonize.start() {
+//!         Ok(_) => info!("Success, daemonized"),
+//!         Err(e) => error!("{}", e),
+//!     }
+//! }
 //! ```
 
 mod ffi;
