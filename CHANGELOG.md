@@ -3,6 +3,13 @@ daemonize changelog
 
 Here you can see the full list of changes between each daemonize release.
 
+Version 0.2.0
+-------------
+
+Released on January 17, 2016
+
+  * Add __Nonexhaustive DaemonizeError variant
+
 Version 0.1.2
 -------------
 
