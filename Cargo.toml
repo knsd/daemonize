@@ -1,6 +1,6 @@
 [package]
 name = "daemonize"
-version = "0.1.2"
+version = "0.2.0"
 license = "MIT/Apache-2.0"
 authors = ["Fedor Gogolev <knsd@knsd.net>"]
 repository = "https://github.com/knsd/daemonize"
