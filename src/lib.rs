@@ -39,7 +39,6 @@
 mod ffi;
 
 extern crate libc;
-#[macro_use] extern crate quick_error;
 
 use std::fmt;
 use std::env::{set_current_dir};
@@ -66,76 +65,79 @@ macro_rules! tryret {
 
 pub type Errno = c_int;
 
-quick_error! {
-    /// This error type for `Daemonize` `start` method.
-    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-    pub enum DaemonizeError {
-        /// Unable to fork
-        Fork {
-            description("unable to fork")
+/// This error type for `Daemonize` `start` method.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub enum DaemonizeError {
+    /// Unable to fork
+    Fork,
+    /// Unable to create new session
+    DetachSession(Errno),
+    /// Group not found
+    GroupNotFound,
+    /// Group option contains NUL
+    GroupContainsNul,
+    /// Unable to set group
+    SetGroup(Errno),
+    /// User not found
+    UserNotFound,
+    /// User option contains NUL
+    UserContainsNul,
+    /// Unable to set user
+    SetUser(Errno),
+    /// Unable to change directory
+    ChangeDirectory,
+    /// pid_file option contains NUL
+    PathContainsNul,
+    /// Unable to open pid file
+    OpenPidfile,
+    /// Unable to lock pid file
+    LockPidfile(Errno),
+    /// Unable to chown pid file
+    ChownPidfile(Errno),
+    /// Unable to redirect standard streams to /dev/null
+    RedirectStreams(Errno),
+    /// Unable to write self pid to pid file
+    WritePid,
+    // Hints that destructuring should not be exhaustive.
+    // This enum may grow additional variants, so this makes sure clients
+    // don't count on exhaustive matching. Otherwise, adding a new variant
+    // could break existing code.
+    #[doc(hidden)]
+    __Nonexhaustive,
+}
+
+impl DaemonizeError {
+    fn __description(&self) -> &str {
+        match self {
+            &DaemonizeError::Fork => "unable to fork",
+            &DaemonizeError::DetachSession(_) => "unable to create new session",
+            &DaemonizeError::GroupNotFound => "group not found",
+            &DaemonizeError::GroupContainsNul => "group option contains NUL",
+            &DaemonizeError::SetGroup(_) => "unable to set group",
+            &DaemonizeError::UserNotFound => "user not found",
+            &DaemonizeError::UserContainsNul => "user option contains NUL",
+            &DaemonizeError::SetUser(_) => "unable to set user",
+            &DaemonizeError::ChangeDirectory => "unable to change directory",
+            &DaemonizeError::PathContainsNul => "pid_file option contains NUL",
+            &DaemonizeError::OpenPidfile => "unable to open pid file",
+            &DaemonizeError::LockPidfile(_) => "unable to lock pid file",
+            &DaemonizeError::ChownPidfile(_) => "unable to chown pid file",
+            &DaemonizeError::RedirectStreams(_) => "unable to redirect standard streams to /dev/null",
+            &DaemonizeError::WritePid => "unable to write self pid to pid file",
+            &DaemonizeError::__Nonexhaustive => unreachable!(),
         }
-        /// Unable to create new session
-        DetachSession(errno: Errno) {
-            description("unable to create new session")
-        }
-        /// Group not found
-        GroupNotFound {
-            description("group not found")
-        }
-        /// Group option contains NUL
-        GroupContainsNul {
-            description("group option contains NUL")
-        }
-        /// Unable to set group
-        SetGroup(errno: Errno) {
-            description("unable to set group")
-        }
-        /// User not found
-        UserNotFound {
-            description("user not found")
-        }
-        /// User option contains NUL
-        UserContainsNul {
-            description("user option contains NUL")
-        }
-        /// Unable to set user
-        SetUser(errno: Errno) {
-            description("unable to set user")
-        }
-        /// Unable to change directory
-        ChangeDirectory {
-            description("unable to change directory")
-        }
-        /// pid_file option contains NUL
-        PathContainsNul {
-            description("pid_file option contains NUL")
-        }
-        /// Unable to open pid file
-        OpenPidfile {
-            description("unable to open pid file")
-        }
-        /// Unable to lock pid file
-        LockPidfile(errno: Errno) {
-            description("unable to lock pid file")
-        }
-        /// Unable to chown pid file
-        ChownPidfile(errno: Errno) {
-            description("unable to chown pid file")
-        }
-        /// Unable to redirect standard streams to /dev/null
-        RedirectStreams(errno: Errno) {
-            description("unable to redirect standard streams to /dev/null")
-        }
-        /// Unable to write self pid to pid file
-        WritePid {
-            description("unable to write self pid to pid file")
-        }
-        // Hints that destructuring should not be exhaustive.
-        // This enum may grow additional variants, so this makes sure clients
-        // don't count on exhaustive matching. Otherwise, adding a new variant
-        // could break existing code.
-        #[doc(hidden)]
-        __Nonexhaustive
+    }
+}
+
+impl std::fmt::Display for DaemonizeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.__description().fmt(f)
+    }
+}
+
+impl std::error::Error for DaemonizeError {
+    fn description(&self) -> &str {
+        self.__description()
     }
 }
 
