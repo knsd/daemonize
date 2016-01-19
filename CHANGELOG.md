@@ -3,6 +3,13 @@ daemonize changelog
 
 Here you can see the full list of changes between each daemonize release.
 
+Version 0.2.1
+-------------
+
+Released on January 19, 2016
+
+  * Remove quick-error dependency
+
 Version 0.2.0
 -------------
 
