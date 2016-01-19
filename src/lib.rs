@@ -111,10 +111,10 @@ impl DaemonizeError {
         match self {
             &DaemonizeError::Fork => "unable to fork",
             &DaemonizeError::DetachSession(_) => "unable to create new session",
-            &DaemonizeError::GroupNotFound => "group not found",
+            &DaemonizeError::GroupNotFound => "unable to resolve group name to group id",
             &DaemonizeError::GroupContainsNul => "group option contains NUL",
             &DaemonizeError::SetGroup(_) => "unable to set group",
-            &DaemonizeError::UserNotFound => "user not found",
+            &DaemonizeError::UserNotFound => "unable to resolve user name to user id",
             &DaemonizeError::UserContainsNul => "user option contains NUL",
             &DaemonizeError::SetUser(_) => "unable to set user",
             &DaemonizeError::ChangeDirectory => "unable to change directory",
