@@ -72,13 +72,13 @@ pub enum DaemonizeError {
     Fork,
     /// Unable to create new session
     DetachSession(Errno),
-    /// Group not found
+    /// Unable to resolve group name to group id
     GroupNotFound,
     /// Group option contains NUL
     GroupContainsNul,
     /// Unable to set group
     SetGroup(Errno),
-    /// User not found
+    /// Unable to resolve user name to user id
     UserNotFound,
     /// User option contains NUL
     UserContainsNul,
