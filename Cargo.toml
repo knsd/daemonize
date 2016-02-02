@@ -11,8 +11,12 @@ keywords = ["daemon", "daemonize", "unix"]
 
 [dependencies]
 libc = "0.2.4"
+clippy = {version = "0.0", optional = true}
 
 [dev-dependencies]
 log = "0.3.4"
 syslog = "3.1.0"
 tempdir = "0.3.4"
+
+[features]
+default=[]
