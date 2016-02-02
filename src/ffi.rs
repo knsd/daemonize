@@ -57,7 +57,7 @@ pub unsafe fn get_gid_by_name(name: &CString) -> Option<libc::gid_t> {
     if ptr.is_null() {
         None
     } else {
-        let ref s = *ptr;
+        let s = &*ptr;
         Some(s.gr_gid)
     }
 }
@@ -67,7 +67,7 @@ pub unsafe fn get_uid_by_name(name: &CString) -> Option<libc::uid_t> {
     if ptr.is_null() {
         None
     } else {
-        let ref s = *ptr;
+        let s = &*ptr;
         Some(s.pw_uid)
     }
 }

@@ -111,23 +111,23 @@ pub enum DaemonizeError {
 
 impl DaemonizeError {
     fn __description(&self) -> &str {
-        match self {
-            &DaemonizeError::Fork => "unable to fork",
-            &DaemonizeError::DetachSession(_) => "unable to create new session",
-            &DaemonizeError::GroupNotFound => "unable to resolve group name to group id",
-            &DaemonizeError::GroupContainsNul => "group option contains NUL",
-            &DaemonizeError::SetGroup(_) => "unable to set group",
-            &DaemonizeError::UserNotFound => "unable to resolve user name to user id",
-            &DaemonizeError::UserContainsNul => "user option contains NUL",
-            &DaemonizeError::SetUser(_) => "unable to set user",
-            &DaemonizeError::ChangeDirectory => "unable to change directory",
-            &DaemonizeError::PathContainsNul => "pid_file option contains NUL",
-            &DaemonizeError::OpenPidfile => "unable to open pid file",
-            &DaemonizeError::LockPidfile(_) => "unable to lock pid file",
-            &DaemonizeError::ChownPidfile(_) => "unable to chown pid file",
-            &DaemonizeError::RedirectStreams(_) => "unable to redirect standard streams to /dev/null",
-            &DaemonizeError::WritePid => "unable to write self pid to pid file",
-            &DaemonizeError::__Nonexhaustive => unreachable!(),
+        match *self {
+            DaemonizeError::Fork => "unable to fork",
+            DaemonizeError::DetachSession(_) => "unable to create new session",
+            DaemonizeError::GroupNotFound => "unable to resolve group name to group id",
+            DaemonizeError::GroupContainsNul => "group option contains NUL",
+            DaemonizeError::SetGroup(_) => "unable to set group",
+            DaemonizeError::UserNotFound => "unable to resolve user name to user id",
+            DaemonizeError::UserContainsNul => "user option contains NUL",
+            DaemonizeError::SetUser(_) => "unable to set user",
+            DaemonizeError::ChangeDirectory => "unable to change directory",
+            DaemonizeError::PathContainsNul => "pid_file option contains NUL",
+            DaemonizeError::OpenPidfile => "unable to open pid file",
+            DaemonizeError::LockPidfile(_) => "unable to lock pid file",
+            DaemonizeError::ChownPidfile(_) => "unable to chown pid file",
+            DaemonizeError::RedirectStreams(_) => "unable to redirect standard streams to /dev/null",
+            DaemonizeError::WritePid => "unable to write self pid to pid file",
+            DaemonizeError::__Nonexhaustive => unreachable!(),
         }
     }
 }
@@ -155,7 +155,7 @@ pub enum User {
 
 impl<'a> From<&'a str> for User {
     fn from(t: &'a str) -> User {
-        User::Name(t.to_string())
+        User::Name(t.to_owned())
     }
 }
 
@@ -174,7 +174,7 @@ pub enum Group {
 
 impl<'a> From<&'a str> for Group {
     fn from(t: &'a str) -> Group {
-        Group::Name(t.to_string())
+        Group::Name(t.to_owned())
     }
 }
 
@@ -345,7 +345,7 @@ unsafe fn set_sid() -> Result<()> {
 unsafe fn redirect_standard_streams() -> Result<()> {
     macro_rules! for_every_stream {
         ($expr:expr) => (
-            for stream in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO].iter() {
+            for stream in &[libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
                 tryret!($expr(*stream), (), DaemonizeError::RedirectStreams);
             }
         )
