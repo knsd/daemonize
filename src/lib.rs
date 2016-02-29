@@ -47,6 +47,7 @@ use std::fmt;
 use std::env::{set_current_dir};
 use std::ffi::{CString};
 use std::os::unix::ffi::OsStringExt;
+use std::os::unix::io::RawFd;
 use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
@@ -187,8 +188,8 @@ impl From<gid_t> for Group {
 /// Daemonization options.
 ///
 /// Fork the process in the background, disassociate from its process group and the control terminal.
-/// Change umask value to `0o027`, redirect all standard streams to `/dev/null`. Change working
-/// directory to `/` or provided value.
+/// Change umask value to `0o027`, redirect all standard streams to `/dev/null` or provided value.
+/// Change working directory to `/` or provided value.
 ///
 /// Optionally:
 ///
@@ -197,6 +198,7 @@ impl From<gid_t> for Group {
 ///   * drop group privileges;
 ///   * change the pid-file ownership to provided user (and/or) group;
 ///   * execute any provided action just before dropping privileges.
+///   * redirect standard streams to provided file descriptors.
 ///
 pub struct Daemonize<T> {
     directory: PathBuf,
@@ -205,6 +207,9 @@ pub struct Daemonize<T> {
     user: Option<User>,
     group: Option<Group>,
     privileged_action: Box<Fn() -> T>,
+    stdin_fd: Option<RawFd>,
+    stdout_fd: Option<RawFd>,
+    stderr_fd: Option<RawFd>,
 }
 
 impl<T> fmt::Debug for Daemonize<T> {
@@ -215,6 +220,9 @@ impl<T> fmt::Debug for Daemonize<T> {
             .field("chown_pid_file", &self.chown_pid_file)
             .field("user", &self.user)
             .field("group", &self.group)
+            .field("stdin_fd", &self.stdin_fd)
+            .field("stdout_fd", &self.stdout_fd)
+            .field("stderr_fd", &self.stderr_fd)
             .finish()
     }
 }
@@ -229,6 +237,9 @@ impl Daemonize<()> {
             user: None,
             group: None,
             privileged_action: Box::new(|| ()),
+            stdin_fd: None,
+            stdout_fd: None,
+            stderr_fd: None,
         }
     }
 }
@@ -265,6 +276,24 @@ impl<T> Daemonize<T> {
         self
     }
 
+    /// Set stdin_fd
+    pub fn stdin_fd(mut self, fd: RawFd) -> Self {
+        self.stdin_fd = Some(fd);
+        self
+    }
+
+    /// Set stdout_fd
+    pub fn stdout_fd(mut self, fd: RawFd) -> Self {
+        self.stdout_fd = Some(fd);
+        self
+    }
+
+    /// Set stderr_fd
+    pub fn stderr_fd(mut self, fd: RawFd) -> Self {
+        self.stderr_fd = Some(fd);
+        self
+    }
+
     /// Execute `action` just before dropping privileges. Most common usecase is to open listening socket.
     /// Result of `action` execution will be returned by `start` method.
     pub fn privileged_action<N, F: Fn() -> N + Sized + 'static>(self, action: F) -> Daemonize<N> {
@@ -297,7 +326,7 @@ impl<T> Daemonize<T> {
 
             try!(perform_fork());
 
-            try!(redirect_standard_streams());
+            try!(redirect_standard_streams(self.stdin_fd, self.stdout_fd, self.stderr_fd));
 
             let uid = maptry!(self.user, get_user);
             let gid = maptry!(self.group, get_group);
@@ -342,7 +371,9 @@ unsafe fn set_sid() -> Result<()> {
     tryret!(setsid(), Ok(()), DaemonizeError::DetachSession)
 }
 
-unsafe fn redirect_standard_streams() -> Result<()> {
+unsafe fn redirect_standard_streams(stdin_fd: Option<RawFd>,
+                                    stdout_fd: Option<RawFd>,
+                                    stderr_fd: Option<RawFd>) -> Result<()> {
     macro_rules! for_every_stream {
         ($expr:expr) => (
             for stream in &[libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
@@ -361,7 +392,10 @@ unsafe fn redirect_standard_streams() -> Result<()> {
     };
 
     let devnull_fd = fileno(devnull_file);
-    for_every_stream!(|stream| dup2(devnull_fd, stream));
+
+    dup2(match stdin_fd { Some(fd) => fd, None => devnull_fd }, libc::STDIN_FILENO);
+    dup2(match stdout_fd { Some(fd) => fd, None => devnull_fd }, libc::STDOUT_FILENO);
+    dup2(match stderr_fd { Some(fd) => fd, None => devnull_fd }, libc::STDERR_FILENO);
 
     Ok(())
 }
