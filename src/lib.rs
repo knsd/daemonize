@@ -398,9 +398,9 @@ unsafe fn set_user(user: uid_t) -> Result<()> {
 }
 
 unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
-    let path_ptr = try!(create_path(path));
+    let path_c = try!(pathbuf_into_cstring(path));
 
-    let f = fopen(path_ptr, b"w" as *const u8 as *const libc::c_char);
+    let f = fopen(path_c.as_ptr(), b"w" as *const u8 as *const libc::c_char);
     if f.is_null() {
         return Err(DaemonizeError::OpenPidfile)
     }
@@ -410,8 +410,8 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
 }
 
 unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
-    let path_ptr = try!(create_path(path));
-    tryret!(libc::chown(path_ptr, uid, gid), Ok(()), DaemonizeError::ChownPidfile)
+    let path_c = try!(pathbuf_into_cstring(path));
+    tryret!(libc::chown(path_c.as_ptr(), uid, gid), Ok(()), DaemonizeError::ChownPidfile)
 }
 
 unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
@@ -426,7 +426,7 @@ unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
     }
 }
 
-unsafe fn create_path<F: AsRef<Path>>(path: F) -> Result<*const libc::c_char> {
-    let path_cstring = try!(CString::new(path.as_ref().as_os_str().to_owned().into_vec()).map_err(|_| DaemonizeError::PathContainsNul));
-    Ok(path_cstring.as_ptr())
+fn pathbuf_into_cstring(path: PathBuf) -> Result<CString> {
+    CString::new(path.into_os_string().into_vec())
+            .map_err(|_| DaemonizeError::PathContainsNul)
 }
