@@ -3,6 +3,14 @@ daemonize changelog
 
 Here you can see the full list of changes between each daemonize release.
 
+Version 0.2.2
+-------------
+
+Released on March 20, 2016
+
+  * Fixed memory unsafety in CStrings routine
+  * Show the actual error on failing to open /dev/null
+
 Version 0.2.1
 -------------
 
