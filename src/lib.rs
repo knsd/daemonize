@@ -416,10 +416,10 @@ unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
 
 unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
     let pid = getpid();
-    let pid_string = format!("{}", pid);
-    let pid_length = pid_string.len() as usize;
-    let pid_buf = CString::new(pid_string.into_bytes()).unwrap().as_ptr() as *const libc::c_void;
-    if write(fd, pid_buf, pid_length) < pid_length as isize {
+    let pid_buf = format!("{}", pid).into_bytes();
+    let pid_length = pid_buf.len();
+    let pid_c = CString::new(pid_buf).unwrap();
+    if write(fd, transmute(pid_c.as_ptr()), pid_length) < pid_length as isize {
         Err(DaemonizeError::WritePid)
     } else {
         Ok(())
