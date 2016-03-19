@@ -354,7 +354,7 @@ unsafe fn redirect_standard_streams() -> Result<()> {
 
     let devnull_file = fopen(transmute(b"/dev/null\0"), transmute(b"w+\0"));
     if devnull_file.is_null() {
-        return Err(DaemonizeError::RedirectStreams(libc::ENOENT))
+        return Err(DaemonizeError::RedirectStreams(errno()))
     };
 
     let devnull_fd = fileno(devnull_file);
