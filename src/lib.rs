@@ -383,12 +383,9 @@ unsafe fn redirect_standard_streams(stdin_fd: Option<RawFd>,
     }
     for_every_stream!(close);
 
-    let devnull_path_ptr = try!(create_path("/dev/null"));
-
-
-    let devnull_file = fopen(devnull_path_ptr, b"w+" as *const u8 as *const libc::c_char);
+    let devnull_file = fopen(transmute(b"/dev/null\0"), transmute(b"w+\0"));
     if devnull_file.is_null() {
-        return Err(DaemonizeError::RedirectStreams(libc::ENOENT))
+        return Err(DaemonizeError::RedirectStreams(errno()))
     };
 
     let devnull_fd = fileno(devnull_file);
@@ -435,9 +432,9 @@ unsafe fn set_user(user: uid_t) -> Result<()> {
 }
 
 unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
-    let path_ptr = try!(create_path(path));
+    let path_c = try!(pathbuf_into_cstring(path));
 
-    let f = fopen(path_ptr, b"w" as *const u8 as *const libc::c_char);
+    let f = fopen(path_c.as_ptr(), b"w" as *const u8 as *const libc::c_char);
     if f.is_null() {
         return Err(DaemonizeError::OpenPidfile)
     }
@@ -447,23 +444,23 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
 }
 
 unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
-    let path_ptr = try!(create_path(path));
-    tryret!(libc::chown(path_ptr, uid, gid), Ok(()), DaemonizeError::ChownPidfile)
+    let path_c = try!(pathbuf_into_cstring(path));
+    tryret!(libc::chown(path_c.as_ptr(), uid, gid), Ok(()), DaemonizeError::ChownPidfile)
 }
 
 unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
     let pid = getpid();
-    let pid_string = format!("{}", pid);
-    let pid_length = pid_string.len() as usize;
-    let pid_buf = CString::new(pid_string.into_bytes()).unwrap().as_ptr() as *const libc::c_void;
-    if write(fd, pid_buf, pid_length) < pid_length as isize {
+    let pid_buf = format!("{}", pid).into_bytes();
+    let pid_length = pid_buf.len();
+    let pid_c = CString::new(pid_buf).unwrap();
+    if write(fd, transmute(pid_c.as_ptr()), pid_length) < pid_length as isize {
         Err(DaemonizeError::WritePid)
     } else {
         Ok(())
     }
 }
 
-unsafe fn create_path<F: AsRef<Path>>(path: F) -> Result<*const libc::c_char> {
-    let path_cstring = try!(CString::new(path.as_ref().as_os_str().to_owned().into_vec()).map_err(|_| DaemonizeError::PathContainsNul));
-    Ok(path_cstring.as_ptr())
+fn pathbuf_into_cstring(path: PathBuf) -> Result<CString> {
+    CString::new(path.into_os_string().into_vec())
+            .map_err(|_| DaemonizeError::PathContainsNul)
 }
