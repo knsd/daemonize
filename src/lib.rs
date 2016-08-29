@@ -51,7 +51,7 @@ use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
 
-pub use libc::{uid_t, gid_t};
+pub use libc::{uid_t, gid_t, mode_t};
 use libc::{LOCK_EX, LOCK_NB, c_int, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2, umask};
 
 use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name};
@@ -204,6 +204,7 @@ pub struct Daemonize<T> {
     chown_pid_file: bool,
     user: Option<User>,
     group: Option<Group>,
+    umask: mode_t,
     privileged_action: Box<Fn() -> T>,
 }
 
@@ -215,6 +216,7 @@ impl<T> fmt::Debug for Daemonize<T> {
             .field("chown_pid_file", &self.chown_pid_file)
             .field("user", &self.user)
             .field("group", &self.group)
+            .field("umask", &self.umask)
             .finish()
     }
 }
@@ -228,6 +230,7 @@ impl Daemonize<()> {
             chown_pid_file: false,
             user: None,
             group: None,
+            umask: 0o027,
             privileged_action: Box::new(|| ()),
         }
     }
@@ -265,6 +268,12 @@ impl<T> Daemonize<T> {
         self
     }
 
+    /// Change umask to `mask` or `0o027` by default.
+    pub fn umask(mut self, mask: mode_t) -> Self {
+        self.umask = mask;
+        self
+    }
+
     /// Execute `action` just before dropping privileges. Most common usecase is to open listening socket.
     /// Result of `action` execution will be returned by `start` method.
     pub fn privileged_action<N, F: Fn() -> N + Sized + 'static>(self, action: F) -> Daemonize<N> {
@@ -293,7 +302,7 @@ impl<T> Daemonize<T> {
 
             try!(set_current_dir(self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
             try!(set_sid());
-            umask(0o027);
+            umask(self.umask);
 
             try!(perform_fork());
 
