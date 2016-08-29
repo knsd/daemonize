@@ -20,15 +20,19 @@ fn run<S: AsRef<OsStr>>(cmd: S, args: &[S]) -> u32 {
 }
 
 #[test]
-fn test_chdir() {
+fn test_umask_chdir() {
     let tmpdir = TempDir::new("chdir").unwrap();
 
-    let args = vec![tmpdir.path().to_str().unwrap(), "test"];
+    // third argument is the umask: 255 == 0o377
+    let args = vec![tmpdir.path().to_str().unwrap(), "test", "255"];
     run("target/debug/examples/test_chdir", &args);
 
+    let filename = tmpdir.path().join("test");
     let mut data = Vec::new();
-    std::fs::File::open(tmpdir.path().join("test")).unwrap().read_to_end(&mut data).unwrap();
-    assert!(data == b"test")
+    std::fs::File::open(&filename).unwrap().read_to_end(&mut data).unwrap();
+    assert!(data == b"test");
+    // due to the umask, the file should have been created with -w
+    assert!(filename.metadata().unwrap().permissions().readonly());
 }
 
 #[test]
