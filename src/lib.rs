@@ -26,7 +26,8 @@
 //!         .working_directory("/tmp") // for default behaviour.
 //!         .user("nobody")
 //!         .group("daemon") // Group name
-//!         .group(2)        // Or group id
+//!         .group(2)        // or group id.
+//!         .umask(0o777)    // Set umask, `0o027` by default.
 //!         .privileged_action(|| "Executed before drop privileges");
 //!
 //!     match daemonize.start() {
