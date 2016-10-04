@@ -368,6 +368,7 @@ unsafe fn redirect_standard_streams() -> Result<()> {
 
     let devnull_fd = fileno(devnull_file);
     for_every_stream!(|stream| dup2(devnull_fd, stream));
+    tryret!(close(devnull_fd), (), DaemonizeError::RedirectStreams);
 
     Ok(())
 }
