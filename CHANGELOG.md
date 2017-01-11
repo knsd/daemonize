@@ -3,6 +3,13 @@ daemonize changelog
 
 Here you can see the full list of changes between each daemonize release.
 
+Version 0.2.3
+-------------
+
+Released on August 29, 2106
+
+  * Add support for setting a different umask
+
 Version 0.2.2
 -------------
 
