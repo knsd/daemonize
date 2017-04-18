@@ -95,6 +95,11 @@ mod tests {
     unsafe fn nobody_uid_gid() -> libc::uid_t {
         (u32::max_value() - 1) as libc::uid_t
     }
+    
+    #[cfg(target_os = "openbsd")]
+    unsafe fn nobody_uid_gid() -> libc::uid_t {
+        (i16::max_value()) as libc::uid_t
+    }
 
     #[test]
     fn test_get_gid_by_name() {
