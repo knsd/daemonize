@@ -42,7 +42,7 @@ unsafe fn errno_location() -> *const libc::c_int {
     extern { fn __errno_location() -> *const libc::c_int; }
     __errno_location()
 }
-#[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd", target_os = "openbsd"))]
 unsafe fn errno_location() -> *const libc::c_int {
     extern { fn __error() -> *const libc::c_int; }
     __error()
