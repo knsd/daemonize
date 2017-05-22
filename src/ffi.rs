@@ -42,6 +42,14 @@ unsafe fn errno_location() -> *const libc::c_int {
     extern { fn __errno_location() -> *const libc::c_int; }
     __errno_location()
 }
+
+
+#[cfg(target_os = "openbsd")]
+unsafe fn errno_location() -> *const libc::c_int {
+    extern { fn __errno() -> *const libc::c_int; }
+    __errno()
+}
+
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
 unsafe fn errno_location() -> *const libc::c_int {
     extern { fn __error() -> *const libc::c_int; }
@@ -86,6 +94,11 @@ mod tests {
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     unsafe fn nobody_uid_gid() -> libc::uid_t {
         (u32::max_value() - 1) as libc::uid_t
+    }
+    
+    #[cfg(target_os = "openbsd")]
+    unsafe fn nobody_uid_gid() -> libc::uid_t {
+        (i16::max_value()) as libc::uid_t
     }
 
     #[test]
