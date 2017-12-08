@@ -53,7 +53,7 @@ use std::path::{Path, PathBuf};
 use std::process::{exit};
 
 pub use libc::{uid_t, gid_t, mode_t};
-use libc::{LOCK_EX, LOCK_NB, c_int, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2, umask};
+use libc::{LOCK_EX, LOCK_NB, c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask};
 
 use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name};
 
@@ -362,12 +362,11 @@ unsafe fn redirect_standard_streams() -> Result<()> {
     }
     for_every_stream!(close);
 
-    let devnull_file = fopen(transmute(b"/dev/null\0"), transmute(b"w+\0"));
-    if devnull_file.is_null() {
+    let devnull_fd = open(transmute(b"/dev/null\0"), libc::O_RDWR);
+    if -1 == devnull_fd {
         return Err(DaemonizeError::RedirectStreams(errno()))
-    };
+    }
 
-    let devnull_fd = fileno(devnull_file);
     for_every_stream!(|stream| dup2(devnull_fd, stream));
     tryret!(close(devnull_fd), (), DaemonizeError::RedirectStreams);
 
@@ -411,12 +410,11 @@ unsafe fn set_user(user: uid_t) -> Result<()> {
 unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
     let path_c = try!(pathbuf_into_cstring(path));
 
-    let f = fopen(path_c.as_ptr(), b"w" as *const u8 as *const libc::c_char);
-    if f.is_null() {
+    let fd = open(path_c.as_ptr(), libc::O_WRONLY | libc::O_CREAT, 0o666);
+    if -1 == fd {
         return Err(DaemonizeError::OpenPidfile)
     }
 
-    let fd = fileno(f);
     tryret!(flock(fd, LOCK_EX | LOCK_NB), Ok(fd), DaemonizeError::LockPidfile)
 }
 
@@ -430,6 +428,9 @@ unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
     let pid_buf = format!("{}", pid).into_bytes();
     let pid_length = pid_buf.len();
     let pid_c = CString::new(pid_buf).unwrap();
+    if -1 == ftruncate(fd, 0) {
+        return Err(DaemonizeError::WritePid)
+    }
     if write(fd, transmute(pid_c.as_ptr()), pid_length) < pid_length as isize {
         Err(DaemonizeError::WritePid)
     } else {
