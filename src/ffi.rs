@@ -35,6 +35,7 @@ extern {
     fn getgrnam(name: *const libc::c_char) -> *const group;
     fn getpwnam(name: *const libc::c_char) -> *const passwd;
     pub fn flock(fd: libc::c_int, operation: libc::c_int) -> libc::c_int;
+    pub fn chroot(fd: *const libc::c_char) -> libc::c_int;
 }
 
 #[cfg(target_os = "linux")]
@@ -95,7 +96,7 @@ mod tests {
     unsafe fn nobody_uid_gid() -> libc::uid_t {
         (u32::max_value() - 1) as libc::uid_t
     }
-    
+
     #[cfg(target_os = "openbsd")]
     unsafe fn nobody_uid_gid() -> libc::uid_t {
         (i16::max_value()) as libc::uid_t

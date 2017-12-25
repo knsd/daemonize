@@ -23,6 +23,7 @@ fn main() {
         .group("daemon") // Group name
         .group(2)        // or group id.
         .umask(0o777)    // Set umask, `0o027` by default.
+        .chroot("/var/empty")  // Change root into a different directory
         .privileged_action(|| "Executed before drop privileges");
 
      match daemonize.start() {
