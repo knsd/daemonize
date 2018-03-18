@@ -41,4 +41,4 @@ env:
 
 notifications:
     webhooks:
-        - http://tg.thesharp.org:8888/travis
+        - http://heimdallr.thesharp.org/travis
