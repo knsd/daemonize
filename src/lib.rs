@@ -55,7 +55,7 @@ use std::process::{exit};
 pub use libc::{uid_t, gid_t, mode_t};
 use libc::{LOCK_EX, LOCK_NB, c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask};
 
-use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name};
+use self::ffi::{chroot, errno, flock, get_gid_by_name, get_uid_by_name};
 
 macro_rules! tryret {
     ($expr:expr, $ret:expr, $err:expr) => (
@@ -102,6 +102,8 @@ pub enum DaemonizeError {
     RedirectStreams(Errno),
     /// Unable to write self pid to pid file
     WritePid,
+    /// Unable to chroot
+    Chroot(Errno),
     // Hints that destructuring should not be exhaustive.
     // This enum may grow additional variants, so this makes sure clients
     // don't count on exhaustive matching. Otherwise, adding a new variant
@@ -128,6 +130,7 @@ impl DaemonizeError {
             DaemonizeError::ChownPidfile(_) => "unable to chown pid file",
             DaemonizeError::RedirectStreams(_) => "unable to redirect standard streams to /dev/null",
             DaemonizeError::WritePid => "unable to write self pid to pid file",
+            DaemonizeError::Chroot(_) => "unable to chroot into directory",
             DaemonizeError::__Nonexhaustive => unreachable!(),
         }
     }
@@ -196,6 +199,7 @@ impl From<gid_t> for Group {
 ///   * maintain and lock the pid-file;
 ///   * drop user privileges;
 ///   * drop group privileges;
+///   * change root directory;
 ///   * change the pid-file ownership to provided user (and/or) group;
 ///   * execute any provided action just before dropping privileges.
 ///
@@ -206,6 +210,7 @@ pub struct Daemonize<T> {
     user: Option<User>,
     group: Option<Group>,
     umask: mode_t,
+    root: Option<PathBuf>,
     privileged_action: Box<Fn() -> T>,
 }
 
@@ -218,6 +223,7 @@ impl<T> fmt::Debug for Daemonize<T> {
             .field("user", &self.user)
             .field("group", &self.group)
             .field("umask", &self.umask)
+            .field("root", &self.root)
             .finish()
     }
 }
@@ -233,6 +239,7 @@ impl Daemonize<()> {
             group: None,
             umask: 0o027,
             privileged_action: Box::new(|| ()),
+            root: None,
         }
     }
 }
@@ -272,6 +279,12 @@ impl<T> Daemonize<T> {
     /// Change umask to `mask` or `0o027` by default.
     pub fn umask(mut self, mask: mode_t) -> Self {
         self.umask = mask;
+        self
+    }
+
+    /// Change root to `path`
+    pub fn chroot<F: AsRef<Path>>(mut self, path: F) -> Self {
+        self.root = Some(path.as_ref().to_owned());
         self
     }
 
@@ -325,6 +338,8 @@ impl<T> Daemonize<T> {
             }
 
             let privileged_action_result = (self.privileged_action)();
+
+            maptry!(self.root, change_root);
 
             maptry!(gid, set_group);
             maptry!(uid, set_user);
@@ -435,6 +450,16 @@ unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
         Err(DaemonizeError::WritePid)
     } else {
         Ok(())
+    }
+}
+
+unsafe fn change_root(path: PathBuf) -> Result<()> {
+    let path_c = pathbuf_into_cstring(path)?;
+
+    if chroot(path_c.as_ptr()) == 0 {
+        Ok(())
+    } else {
+        Err(DaemonizeError::Chroot(errno()))
     }
 }
 
