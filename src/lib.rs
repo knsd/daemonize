@@ -45,6 +45,7 @@ mod ffi;
 extern crate libc;
 
 use std::fmt;
+use std::io;
 use std::env::{set_current_dir};
 use std::ffi::{CString};
 use std::os::unix::ffi::OsStringExt;
@@ -53,9 +54,9 @@ use std::path::{Path, PathBuf};
 use std::process::{exit};
 
 pub use libc::{uid_t, gid_t, mode_t};
-use libc::{LOCK_EX, LOCK_NB, c_int, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2, umask};
+use libc::{LOCK_EX, LOCK_NB, fopen, write, close, fileno, fork, getpid, setsid, setuid, setgid, dup2, umask};
 
-use self::ffi::{errno, flock, get_gid_by_name, get_uid_by_name};
+use self::ffi::{flock, get_gid_by_name, get_uid_by_name};
 
 macro_rules! tryret {
     ($expr:expr, $ret:expr, $err:expr) => (
@@ -67,7 +68,7 @@ macro_rules! tryret {
     )
 }
 
-pub type Errno = c_int;
+pub type Errno = i32;
 
 /// This error type for `Daemonize` `start` method.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -108,6 +109,10 @@ pub enum DaemonizeError {
     // could break existing code.
     #[doc(hidden)]
     __Nonexhaustive,
+}
+
+fn errno() -> Errno {
+    io::Error::last_os_error().raw_os_error().unwrap()
 }
 
 impl DaemonizeError {
