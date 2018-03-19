@@ -45,6 +45,7 @@ mod ffi;
 extern crate libc;
 
 use std::fmt;
+use std::io;
 use std::env::{set_current_dir};
 use std::ffi::{CString};
 use std::os::unix::ffi::OsStringExt;
@@ -55,7 +56,7 @@ use std::process::{exit};
 pub use libc::{uid_t, gid_t, mode_t};
 use libc::{LOCK_EX, LOCK_NB, c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask};
 
-use self::ffi::{chroot, errno, flock, get_gid_by_name, get_uid_by_name};
+use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
 
 macro_rules! tryret {
     ($expr:expr, $ret:expr, $err:expr) => (
@@ -466,4 +467,8 @@ unsafe fn change_root(path: PathBuf) -> Result<()> {
 fn pathbuf_into_cstring(path: PathBuf) -> Result<CString> {
     CString::new(path.into_os_string().into_vec())
             .map_err(|_| DaemonizeError::PathContainsNul)
+}
+
+fn errno() -> Errno {
+    io::Error::last_os_error().raw_os_error().expect("errno")
 }

@@ -38,29 +38,6 @@ extern {
     pub fn chroot(fd: *const libc::c_char) -> libc::c_int;
 }
 
-#[cfg(target_os = "linux")]
-unsafe fn errno_location() -> *const libc::c_int {
-    extern { fn __errno_location() -> *const libc::c_int; }
-    __errno_location()
-}
-
-
-#[cfg(target_os = "openbsd")]
-unsafe fn errno_location() -> *const libc::c_int {
-    extern { fn __errno() -> *const libc::c_int; }
-    __errno()
-}
-
-#[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
-unsafe fn errno_location() -> *const libc::c_int {
-    extern { fn __error() -> *const libc::c_int; }
-    __error()
-}
-
-pub unsafe fn errno() -> libc::c_int {
-    *errno_location()
-}
-
 pub unsafe fn get_gid_by_name(name: &CString) -> Option<libc::gid_t> {
     let ptr = getgrnam(name.as_ptr() as *const libc::c_char);
     if ptr.is_null() {
