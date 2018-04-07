@@ -48,7 +48,9 @@ use std::fmt;
 use std::io;
 use std::env::{set_current_dir};
 use std::ffi::{CString};
+use std::fs::File;
 use std::os::unix::ffi::OsStringExt;
+use std::os::unix::io::AsRawFd;
 use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
@@ -189,6 +191,33 @@ impl From<gid_t> for Group {
     }
 }
 
+#[derive(Debug)]
+enum StdioImp {
+    Devnull,
+    RedirectToFile(File),
+}
+
+#[derive(Debug)]
+pub struct Stdio {
+    inner: StdioImp
+}
+
+impl Stdio {
+    fn devnull() -> Self {
+        Self {
+            inner: StdioImp::Close
+        }
+    }
+}
+
+impl From<File> for Stdio {
+    fn from(file: File) -> Self {
+        Self {
+            inner: StdioImp::RedirectToFile(file)
+        }
+    }
+}
+
 /// Daemonization options.
 ///
 /// Fork the process in the background, disassociate from its process group and the control terminal.
@@ -213,6 +242,9 @@ pub struct Daemonize<T> {
     umask: mode_t,
     root: Option<PathBuf>,
     privileged_action: Box<Fn() -> T>,
+    stdin: Stdio,
+    stdout: Stdio,
+    stderr: Stdio,
 }
 
 impl<T> fmt::Debug for Daemonize<T> {
@@ -225,6 +257,9 @@ impl<T> fmt::Debug for Daemonize<T> {
             .field("group", &self.group)
             .field("umask", &self.umask)
             .field("root", &self.root)
+            .field("stdin", &self.stdin)
+            .field("stdout", &self.stdout)
+            .field("stderr", &self.stderr)
             .finish()
     }
 }
@@ -241,6 +276,9 @@ impl Daemonize<()> {
             umask: 0o027,
             privileged_action: Box::new(|| ()),
             root: None,
+            stdin: Stdio::devnull(),
+            stdout: Stdio::devnull(),
+            stderr: Stdio::devnull(),
         }
     }
 }
@@ -297,6 +335,16 @@ impl<T> Daemonize<T> {
         new
     }
 
+    pub fn stdout<S: Into<Stdio>>(mut self, stdio: S) -> Self {
+        self.stdout = stdio.into();
+        self
+    }
+
+    pub fn stderr<S: Into<Stdio>>(mut self, stdio: S) -> Self {
+        self.stderr = stdio.into();
+        self
+    }
+
     /// Start daemonization process.
     pub fn start(self) -> std::result::Result<T, DaemonizeError> {
         // Maps an Option<T> to Option<U> by applying a function Fn(T) -> Result<U, DaemonizeError>
@@ -321,7 +369,7 @@ impl<T> Daemonize<T> {
 
             try!(perform_fork());
 
-            try!(redirect_standard_streams());
+            try!(redirect_standard_streams(self.stdin, self.stdout, self.stderr));
 
             let uid = maptry!(self.user, get_user);
             let gid = maptry!(self.group, get_group);
@@ -368,22 +416,30 @@ unsafe fn set_sid() -> Result<()> {
     tryret!(setsid(), Ok(()), DaemonizeError::DetachSession)
 }
 
-unsafe fn redirect_standard_streams() -> Result<()> {
-    macro_rules! for_every_stream {
-        ($expr:expr) => (
-            for stream in &[libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
-                tryret!($expr(*stream), (), DaemonizeError::RedirectStreams);
-            }
-        )
-    }
-    for_every_stream!(close);
-
+unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) -> Result<()> {
     let devnull_fd = open(transmute(b"/dev/null\0"), libc::O_RDWR);
     if -1 == devnull_fd {
         return Err(DaemonizeError::RedirectStreams(errno()))
     }
 
-    for_every_stream!(|stream| dup2(devnull_fd, stream));
+    let process_stdio = |fd, stdio: Stdio| {
+        tryret!(close(fd), (), DaemonizeError::RedirectStreams);
+        match stdio.inner {
+            StdioImp::Devnull => {
+                tryret!(dup2(devnull_fd, fd), (), DaemonizeError::RedirectStreams);
+            },
+            StdioImp::RedirectToFile(file) => {
+                let raw_fd = file.as_raw_fd();
+                tryret!(dup2(raw_fd, fd), (), DaemonizeError::RedirectStreams);
+            },
+        };
+        Ok(())
+    };
+
+    process_stdio(libc::STDIN_FILENO, stdin)?;
+    process_stdio(libc::STDOUT_FILENO, stdout)?;
+    process_stdio(libc::STDERR_FILENO, stderr)?;
+
     tryret!(close(devnull_fd), (), DaemonizeError::RedirectStreams);
 
     Ok(())
