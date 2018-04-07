@@ -3,6 +3,16 @@ daemonize changelog
 
 Here you can see the full list of changes between each daemonize release.
 
+Version 0.3.0
+-------------
+
+Released on April 07, 2018
+
+  * Don't clobber pidfile of already-running daemon, #21
+  * Add ability to `chroot(2)` as part of the daemon process, #22
+  * Replace platform-dependent errno with std function, #23
+  * Redirect standard streams to defined files, #1
+
 Version 0.2.3
 -------------
 
