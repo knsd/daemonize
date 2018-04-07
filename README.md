@@ -1,10 +1,8 @@
-daemonize [![Build Status](https://travis-ci.org/knsd/daemonize.svg?branch=master)](https://travis-ci.org/knsd/daemonize) [![Latest Version](https://img.shields.io/crates/v/daemonize.svg)](https://crates.io/crates/daemonize/)
+daemonize [![Build Status](https://travis-ci.org/knsd/daemonize.svg?branch=master)](https://travis-ci.org/knsd/daemonize) [![Latest Version](https://img.shields.io/crates/v/daemonize.svg)](https://crates.io/crates/daemonize/) [![docs](https://docs.rs/daemonize/badge.svg)](https://docs.rs/daemonize)
 =========
 
 
 daemonize is a library for writing system daemons. Inspired by the Python library [thesharp/daemonize](https://github.com/thesharp/daemonize).
-
-The documentation is located at http://knsd.github.io/daemonize/.
 
 Usage example:
 
