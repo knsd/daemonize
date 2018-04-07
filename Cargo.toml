@@ -8,6 +8,7 @@ documentation = "http://knsd.github.io/daemonize"
 readme = "README.md"
 description = "Library to enable your code run as a daemon process on Unix-like systems."
 keywords = ["daemon", "daemonize", "unix"]
+categories = ["os::unix-apis"]
 
 [dependencies]
 libc = "0.2.4"
