@@ -16,7 +16,7 @@ Released on April 07, 2018
 Version 0.2.3
 -------------
 
-Released on August 29, 2106
+Released on August 29, 2016
 
   * Add support for setting a different umask
 
