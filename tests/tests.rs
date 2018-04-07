@@ -91,3 +91,24 @@ fn test_uid_gid() {
     assert!(!data.is_empty());
     assert!(data != own_uid_gid_string)
 }
+
+#[test]
+fn test_redirect_streams() {
+    let tmpdir = TempDir::new("redirect").unwrap();
+    let stdout_file = tmpdir.path().join("stdout");
+    let stderr_file = tmpdir.path().join("stderr");
+
+    let args = vec![stdout_file.to_str().unwrap(), stderr_file.to_str().unwrap()];
+    run("target/debug/examples/test_redirect_streams", &args);
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let mut stdout = String::new();
+    std::fs::File::open(&stdout_file).unwrap().read_to_string(&mut stdout).unwrap();
+
+    let mut stderr = String::new();
+    std::fs::File::open(&stderr_file).unwrap().read_to_string(&mut stderr).unwrap();
+
+    assert_eq!(stdout, "stdout\nnewline\n");
+    assert_eq!(stderr, "stderr\nnewline\n");
+}
