@@ -14,12 +14,16 @@
 //! Usage example:
 //!
 //! ```
-//! #[macro_use] extern crate log;
 //! extern crate daemonize;
 //!
-//! use daemonize::{Daemonize};
+//! use std::fs::File;
+//!
+//! use daemonize::Daemonize;
 //!
 //! fn main() {
+//!     let stdout = File::create("/tmp/daemon.out").unwrap();
+//!     let stderr = File::create("/tmp/daemon.err").unwrap();
+//!
 //!     let daemonize = Daemonize::new()
 //!         .pid_file("/tmp/test.pid") // Every method except `new` and `start`
 //!         .chown_pid_file(true)      // is optional, see `Daemonize` documentation
@@ -28,11 +32,13 @@
 //!         .group("daemon") // Group name
 //!         .group(2)        // or group id.
 //!         .umask(0o777)    // Set umask, `0o027` by default.
+//!         .stdout(stdout)  // Redirect stdout to `/tmp/daemon.out`.
+//!         .stderr(stderr)  // Redirect stderr to `/tmp/daemon.err`.
 //!         .privileged_action(|| "Executed before drop privileges");
 //!
 //!     match daemonize.start() {
-//!         Ok(_) => info!("Success, daemonized"),
-//!         Err(e) => error!("{}", e),
+//!         Ok(_) => println!("Success, daemonized"),
+//!         Err(e) => eprintln!("Error, {}", e),
 //!     }
 //! }
 //! ```
@@ -197,6 +203,7 @@ enum StdioImp {
     RedirectToFile(File),
 }
 
+/// Describes what to do with a standard I/O stream for a child process.
 #[derive(Debug)]
 pub struct Stdio {
     inner: StdioImp
@@ -205,7 +212,7 @@ pub struct Stdio {
 impl Stdio {
     fn devnull() -> Self {
         Self {
-            inner: StdioImp::Close
+            inner: StdioImp::Devnull
         }
     }
 }
@@ -335,11 +342,13 @@ impl<T> Daemonize<T> {
         new
     }
 
+    /// Configuration for the child process's standard output stream.
     pub fn stdout<S: Into<Stdio>>(mut self, stdio: S) -> Self {
         self.stdout = stdio.into();
         self
     }
 
+    /// Configuration for the child process's standard error stream.
     pub fn stderr<S: Into<Stdio>>(mut self, stdio: S) -> Self {
         self.stderr = stdio.into();
         self

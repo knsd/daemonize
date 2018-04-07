@@ -9,12 +9,16 @@ The documentation is located at http://knsd.github.io/daemonize/.
 Usage example:
 
 ```rust
-#[macro_use] extern crate log;
 extern crate daemonize;
 
-use daemonize::{Daemonize};
+use std::fs::File;
+
+use daemonize::Daemonize;
 
 fn main() {
+    let stdout = File::create("/tmp/daemon.out").unwrap();
+    let stderr = File::create("/tmp/daemon.err").unwrap();
+
     let daemonize = Daemonize::new()
         .pid_file("/tmp/test.pid") // Every method except `new` and `start`
         .chown_pid_file(true)      // is optional, see `Daemonize` documentation
@@ -23,14 +27,15 @@ fn main() {
         .group("daemon") // Group name
         .group(2)        // or group id.
         .umask(0o777)    // Set umask, `0o027` by default.
-        .chroot("/var/empty")  // Change root into a different directory
+        .stdout(stdout)  // Redirect stdout to `/tmp/daemon.out`.
+        .stderr(stderr)  // Redirect stderr to `/tmp/daemon.err`.
         .privileged_action(|| "Executed before drop privileges");
 
-     match daemonize.start() {
-         Ok(_) => info!("Success, daemonized"),
-         Err(e) => error!("{}", e),
-     }
- }
+    match daemonize.start() {
+        Ok(_) => println!("Success, daemonized"),
+        Err(e) => eprintln!("Error, {}", e),
+    }
+}
 ```
 
 ### License
