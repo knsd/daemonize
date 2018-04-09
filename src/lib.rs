@@ -348,7 +348,8 @@ impl<T> Daemonize<T> {
     }
 }
 
-pub enum ForkResult<T> { Parent(i32), Child(T) }
+#[derive(Clone, Debug)]
+pub enum ForkResult<T> { Parent(libc::pid_t), Child(T) }
 
 unsafe fn perform_fork() -> Result<ForkResult<()>> {
     let pid = fork();
