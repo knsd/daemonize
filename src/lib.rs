@@ -53,20 +53,21 @@ extern crate libc;
 
 use std::fmt;
 use std::io;
-use std::env::{set_current_dir};
-use std::ffi::{CString};
+use std::env::set_current_dir;
+use std::ffi::CString;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io::Write;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::io::AsRawFd;
-use std::mem::{transmute};
+use std::mem::transmute;
 use std::path::{Path, PathBuf};
-use std::process::{exit};
+use std::process::{exit, id};
 
 use fs2::FileExt;
 
 pub use libc::{uid_t, gid_t, mode_t};
-use libc::{c_int, open, write, close, fork, getpid, setsid, setuid, setgid, dup2, umask, chroot};
+use libc::{c_int, open, close, fork, setsid, setuid, setgid, dup2, umask, chroot};
 
 use self::ffi::{get_gid_by_name, get_uid_by_name};
 
@@ -507,20 +508,12 @@ unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
     tryret!(libc::chown(path_c.as_ptr(), uid, gid), Ok(()), DaemonizeError::ChownPidfile)
 }
 
-unsafe fn write_pid_file(pid_file: File) -> Result<()> {
-    let pid = getpid();
-    let pid_buf = format!("{}", pid).into_bytes();
-    let pid_length = pid_buf.len();
-    let pid_c = CString::new(pid_buf).unwrap();
-    let fd = pid_file.as_raw_fd();
+fn write_pid_file(mut pid_file: File) -> Result<()> {
+    let pid_str = format!("{}", id());
     if pid_file.set_len(0).is_err() {
         return Err(DaemonizeError::WritePid)
     }
-    if write(fd, transmute(pid_c.as_ptr()), pid_length) < pid_length as isize {
-        Err(DaemonizeError::WritePid)
-    } else {
-        Ok(())
-    }
+    pid_file.write_all(pid_str.as_bytes()).map_err(|_| DaemonizeError::WritePid)
 }
 
 unsafe fn change_root(path: PathBuf) -> Result<()> {
