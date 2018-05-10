@@ -372,51 +372,51 @@ impl<T> Daemonize<T> {
             )
         }
 
+        let pid_file = maptry!(self.pid_file.clone(), create_pid_file);
+
+        try!(perform_fork());
+
+        try!(set_current_dir(self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
+        try!(set_sid());
         unsafe {
-            let pid_file = maptry!(self.pid_file.clone(), create_pid_file);
-
-            try!(perform_fork());
-
-            try!(set_current_dir(self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
-            try!(set_sid());
             umask(self.umask);
 
             try!(perform_fork());
 
             try!(redirect_standard_streams(self.stdin, self.stdout, self.stderr));
-
-            let uid = maptry!(self.user, get_user);
-            let gid = maptry!(self.group, get_group);
-
-            if self.chown_pid_file {
-                let args: Option<(PathBuf, uid_t, gid_t)> = match (self.pid_file, uid, gid) {
-                    (Some(pid), Some(uid), Some(gid)) => Some((pid, uid, gid)),
-                    (Some(pid), None, Some(gid)) => Some((pid, uid_t::max_value() - 1, gid)),
-                    (Some(pid), Some(uid), None) => Some((pid, uid, gid_t::max_value() - 1)),
-                    // Or pid file is not provided, or both user and group
-                    _ => None
-                };
-
-                maptry!(args, |(pid, uid, gid)| chown_pid_file(pid, uid, gid));
-            }
-
-            let privileged_action_result = (self.privileged_action)();
-
-            maptry!(self.root, change_root);
-
-            maptry!(gid, set_group);
-            maptry!(uid, set_user);
-
-            maptry!(pid_file, write_pid_file);
-
-            Ok(privileged_action_result)
         }
+
+        let uid = maptry!(self.user, get_user);
+        let gid = maptry!(self.group, get_group);
+
+        if self.chown_pid_file {
+            let args: Option<(PathBuf, uid_t, gid_t)> = match (self.pid_file, uid, gid) {
+                (Some(pid), Some(uid), Some(gid)) => Some((pid, uid, gid)),
+                (Some(pid), None, Some(gid)) => Some((pid, uid_t::max_value() - 1, gid)),
+                (Some(pid), Some(uid), None) => Some((pid, uid, gid_t::max_value() - 1)),
+                // Or pid file is not provided, or both user and group
+                _ => None
+            };
+
+            maptry!(args, |(pid, uid, gid)| chown_pid_file(pid, uid, gid));
+        }
+
+        let privileged_action_result = (self.privileged_action)();
+
+        maptry!(self.root, change_root);
+
+        maptry!(gid, set_group);
+        maptry!(uid, set_user);
+
+        maptry!(pid_file, write_pid_file);
+
+        Ok(privileged_action_result)
     }
 
 }
 
-unsafe fn perform_fork() -> Result<()> {
-    let pid = fork();
+fn perform_fork() -> Result<()> {
+    let pid = unsafe { fork() };
     if pid < 0 {
         Err(DaemonizeError::Fork)
     } else if pid == 0 {
@@ -426,8 +426,8 @@ unsafe fn perform_fork() -> Result<()> {
     }
 }
 
-unsafe fn set_sid() -> Result<()> {
-    tryret!(setsid(), Ok(()), DaemonizeError::DetachSession)
+fn set_sid() -> Result<()> {
+    tryret!(unsafe { setsid() }, Ok(()), DaemonizeError::DetachSession)
 }
 
 unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) -> Result<()> {
@@ -459,12 +459,12 @@ unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) 
     Ok(())
 }
 
-unsafe fn get_group(group: Group) -> Result<gid_t> {
+fn get_group(group: Group) -> Result<gid_t> {
     match group {
         Group::Id(id) => Ok(id),
         Group::Name(name) => {
             let s = try!(CString::new(name).map_err(|_| DaemonizeError::GroupContainsNul));
-            match get_gid_by_name(&s) {
+            match unsafe { get_gid_by_name(&s) } {
                 Some(id) => get_group(Group::Id(id)),
                 None => Err(DaemonizeError::GroupNotFound)
             }
@@ -472,16 +472,16 @@ unsafe fn get_group(group: Group) -> Result<gid_t> {
     }
 }
 
-unsafe fn set_group(group: gid_t) -> Result<()> {
-    tryret!(setgid(group), Ok(()), DaemonizeError::SetGroup)
+fn set_group(group: gid_t) -> Result<()> {
+    tryret!(unsafe { setgid(group) }, Ok(()), DaemonizeError::SetGroup)
 }
 
-unsafe fn get_user(user: User) -> Result<uid_t> {
+fn get_user(user: User) -> Result<uid_t> {
     match user {
         User::Id(id) => Ok(id),
         User::Name(name) => {
             let s = try!(CString::new(name).map_err(|_| DaemonizeError::UserContainsNul));
-            match get_uid_by_name(&s) {
+            match unsafe { get_uid_by_name(&s) } {
                 Some(id) => get_user(User::Id(id)),
                 None => Err(DaemonizeError::UserNotFound)
             }
@@ -489,8 +489,8 @@ unsafe fn get_user(user: User) -> Result<uid_t> {
     }
 }
 
-unsafe fn set_user(user: uid_t) -> Result<()> {
-    tryret!(setuid(user), Ok(()), DaemonizeError::SetUser)
+fn set_user(user: uid_t) -> Result<()> {
+    tryret!(unsafe { setuid(user) }, Ok(()), DaemonizeError::SetUser)
 }
 
 fn create_pid_file(path: PathBuf) -> Result<File> {
@@ -503,9 +503,9 @@ fn create_pid_file(path: PathBuf) -> Result<File> {
     }
 }
 
-unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
+fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
     let path_c = try!(pathbuf_into_cstring(path));
-    tryret!(libc::chown(path_c.as_ptr(), uid, gid), Ok(()), DaemonizeError::ChownPidfile)
+    tryret!(unsafe { libc::chown(path_c.as_ptr(), uid, gid) }, Ok(()), DaemonizeError::ChownPidfile)
 }
 
 fn write_pid_file(mut pid_file: File) -> Result<()> {
@@ -516,10 +516,10 @@ fn write_pid_file(mut pid_file: File) -> Result<()> {
     pid_file.write_all(pid_str.as_bytes()).map_err(|_| DaemonizeError::WritePid)
 }
 
-unsafe fn change_root(path: PathBuf) -> Result<()> {
+fn change_root(path: PathBuf) -> Result<()> {
     let path_c = pathbuf_into_cstring(path)?;
 
-    if chroot(path_c.as_ptr()) == 0 {
+    if unsafe { chroot(path_c.as_ptr()) } == 0 {
         Ok(())
     } else {
         Err(DaemonizeError::Chroot(errno()))
