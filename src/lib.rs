@@ -56,8 +56,9 @@ use std::io;
 use std::env::{set_current_dir};
 use std::ffi::{CString};
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::os::unix::ffi::OsStringExt;
-use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::os::unix::io::AsRawFd;
 use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
@@ -371,7 +372,7 @@ impl<T> Daemonize<T> {
         }
 
         unsafe {
-            let pid_file_fd = maptry!(self.pid_file.clone(), create_pid_file);
+            let pid_file = maptry!(self.pid_file.clone(), create_pid_file);
 
             try!(perform_fork());
 
@@ -405,7 +406,7 @@ impl<T> Daemonize<T> {
             maptry!(gid, set_group);
             maptry!(uid, set_user);
 
-            maptry!(pid_file_fd, write_pid_file);
+            maptry!(pid_file, write_pid_file);
 
             Ok(privileged_action_result)
         }
@@ -491,17 +492,13 @@ unsafe fn set_user(user: uid_t) -> Result<()> {
     tryret!(setuid(user), Ok(()), DaemonizeError::SetUser)
 }
 
-unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
-    let path_c = try!(pathbuf_into_cstring(path));
-
-    let fd = open(path_c.as_ptr(), libc::O_WRONLY | libc::O_CREAT, 0o666);
-    if -1 == fd {
-        return Err(DaemonizeError::OpenPidfile)
-    }
-
-    match File::from_raw_fd(fd).try_lock_exclusive() {
-        Ok(_) => Ok(fd),
-        Err(e) => Err(DaemonizeError::LockPidfile(e.raw_os_error().expect("errno"))),
+fn create_pid_file(path: PathBuf) -> Result<File> {
+    match OpenOptions::new().write(true).create(true).open(path) {
+        Ok(file) => match file.try_lock_exclusive() {
+            Ok(_) => Ok(file),
+            Err(e) => Err(DaemonizeError::LockPidfile(e.raw_os_error().expect("create_pid_file"))),
+        }
+        Err(_) => Err(DaemonizeError::OpenPidfile)
     }
 }
 
@@ -510,11 +507,12 @@ unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
     tryret!(libc::chown(path_c.as_ptr(), uid, gid), Ok(()), DaemonizeError::ChownPidfile)
 }
 
-unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
+unsafe fn write_pid_file(pid_file: File) -> Result<()> {
     let pid = getpid();
     let pid_buf = format!("{}", pid).into_bytes();
     let pid_length = pid_buf.len();
     let pid_c = CString::new(pid_buf).unwrap();
+    let fd = pid_file.as_raw_fd();
     if -1 == ftruncate(fd, 0) {
         return Err(DaemonizeError::WritePid)
     }
