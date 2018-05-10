@@ -66,7 +66,7 @@ use std::process::{exit};
 use fs2::FileExt;
 
 pub use libc::{uid_t, gid_t, mode_t};
-use libc::{c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask, chroot};
+use libc::{c_int, open, write, close, fork, getpid, setsid, setuid, setgid, dup2, umask, chroot};
 
 use self::ffi::{get_gid_by_name, get_uid_by_name};
 
@@ -513,7 +513,7 @@ unsafe fn write_pid_file(pid_file: File) -> Result<()> {
     let pid_length = pid_buf.len();
     let pid_c = CString::new(pid_buf).unwrap();
     let fd = pid_file.as_raw_fd();
-    if -1 == ftruncate(fd, 0) {
+    if pid_file.set_len(0).is_err() {
         return Err(DaemonizeError::WritePid)
     }
     if write(fd, transmute(pid_c.as_ptr()), pid_length) < pid_length as isize {
