@@ -11,6 +11,7 @@ keywords = ["daemon", "daemonize", "unix"]
 categories = ["os::unix-apis"]
 
 [dependencies]
+fs2 = "0.4"
 libc = "0.2.4"
 clippy = {version = "0.0", optional = true}
 

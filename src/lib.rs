@@ -48,6 +48,7 @@
 
 mod ffi;
 
+extern crate fs2;
 extern crate libc;
 
 use std::fmt;
@@ -56,13 +57,15 @@ use std::env::{set_current_dir};
 use std::ffi::{CString};
 use std::fs::File;
 use std::os::unix::ffi::OsStringExt;
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
 
+use fs2::FileExt;
+
 pub use libc::{uid_t, gid_t, mode_t};
-use libc::{LOCK_EX, LOCK_NB, c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask, flock, chroot};
+use libc::{c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask, chroot};
 
 use self::ffi::{get_gid_by_name, get_uid_by_name};
 
@@ -496,7 +499,10 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
         return Err(DaemonizeError::OpenPidfile)
     }
 
-    tryret!(flock(fd, LOCK_EX | LOCK_NB), Ok(fd), DaemonizeError::LockPidfile)
+    match File::from_raw_fd(fd).try_lock_exclusive() {
+        Ok(_) => Ok(fd),
+        Err(e) => Err(DaemonizeError::LockPidfile(e.raw_os_error().expect("errno"))),
+    }
 }
 
 unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
