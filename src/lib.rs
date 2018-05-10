@@ -62,9 +62,9 @@ use std::path::{Path, PathBuf};
 use std::process::{exit};
 
 pub use libc::{uid_t, gid_t, mode_t};
-use libc::{LOCK_EX, LOCK_NB, c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask};
+use libc::{LOCK_EX, LOCK_NB, c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask, flock, chroot};
 
-use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
+use self::ffi::{get_gid_by_name, get_uid_by_name};
 
 macro_rules! tryret {
     ($expr:expr, $ret:expr, $err:expr) => (

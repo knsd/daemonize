@@ -6,40 +6,12 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-extern crate libc;
+use libc;
 
 use std::ffi::{CString};
 
-#[repr(C)]
-#[allow(dead_code)]
-struct passwd {
-    pw_name:   *const libc::c_char,
-    pw_passwd: *const libc::c_char,
-    pw_uid:    libc::uid_t,
-    pw_gid:    libc::gid_t,
-    pw_gecos:  *const libc::c_char,
-    pw_dir:    *const libc::c_char,
-    pw_shell:  *const libc::c_char,
-}
-
-#[repr(C)]
-#[allow(dead_code)]
-struct group {
-    gr_name:   *const libc::c_char,
-    gr_passwd: *const libc::c_char,
-    gr_gid:    libc::gid_t,
-    gr_mem:    *const *const libc::c_char,
-}
-
-extern {
-    fn getgrnam(name: *const libc::c_char) -> *const group;
-    fn getpwnam(name: *const libc::c_char) -> *const passwd;
-    pub fn flock(fd: libc::c_int, operation: libc::c_int) -> libc::c_int;
-    pub fn chroot(fd: *const libc::c_char) -> libc::c_int;
-}
-
 pub unsafe fn get_gid_by_name(name: &CString) -> Option<libc::gid_t> {
-    let ptr = getgrnam(name.as_ptr() as *const libc::c_char);
+    let ptr = libc::getgrnam(name.as_ptr() as *const libc::c_char);
     if ptr.is_null() {
         None
     } else {
@@ -49,7 +21,7 @@ pub unsafe fn get_gid_by_name(name: &CString) -> Option<libc::gid_t> {
 }
 
 pub unsafe fn get_uid_by_name(name: &CString) -> Option<libc::uid_t> {
-    let ptr = getpwnam(name.as_ptr() as *const libc::c_char);
+    let ptr = libc::getpwnam(name.as_ptr() as *const libc::c_char);
     if ptr.is_null() {
         None
     } else {
