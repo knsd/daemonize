@@ -372,7 +372,7 @@ impl<T> Daemonize<T> {
             )
         }
 
-        let pid_file = maptry!(self.pid_file.clone(), create_pid_file);
+        let mut pid_file = maptry!(self.pid_file.clone(), create_pid_file);
 
         try!(perform_fork());
 
@@ -408,7 +408,7 @@ impl<T> Daemonize<T> {
         maptry!(gid, set_group);
         maptry!(uid, set_user);
 
-        maptry!(pid_file, write_pid_file);
+        maptry!(&mut pid_file, write_pid_file);
 
         Ok(privileged_action_result)
     }
@@ -508,7 +508,7 @@ fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
     tryret!(unsafe { libc::chown(path_c.as_ptr(), uid, gid) }, Ok(()), DaemonizeError::ChownPidfile)
 }
 
-fn write_pid_file(mut pid_file: File) -> Result<()> {
+fn write_pid_file(pid_file: &mut File) -> Result<()> {
     let pid_str = format!("{}", id());
     if pid_file.set_len(0).is_err() {
         return Err(DaemonizeError::WritePid)
