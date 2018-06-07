@@ -49,6 +49,7 @@
 
 mod ffi;
 
+extern crate boxfnonce;
 extern crate libc;
 
 use std::fmt;
@@ -62,6 +63,7 @@ use std::mem::{transmute};
 use std::path::{Path, PathBuf};
 use std::process::{exit};
 
+use boxfnonce::BoxFnOnce;
 pub use libc::{uid_t, gid_t, mode_t};
 use libc::{LOCK_EX, LOCK_NB, c_int, open, write, close, ftruncate, fork, getpid, setsid, setuid, setgid, dup2, umask};
 
@@ -249,8 +251,8 @@ pub struct Daemonize<T> {
     group: Option<Group>,
     umask: mode_t,
     root: Option<PathBuf>,
-    privileged_action: Box<Fn() -> T>,
-    exit_action: Box<Fn()>,
+    privileged_action: BoxFnOnce<'static, (), T>,
+    exit_action: BoxFnOnce<'static, (), ()>,
     stdin: Stdio,
     stdout: Stdio,
     stderr: Stdio,
@@ -283,8 +285,8 @@ impl Daemonize<()> {
             user: None,
             group: None,
             umask: 0o027,
-            privileged_action: Box::new(|| ()),
-            exit_action: Box::new(|| ()),
+            privileged_action: BoxFnOnce::new(|| ()),
+            exit_action: BoxFnOnce::new(|| ()),
             root: None,
             stdin: Stdio::devnull(),
             stdout: Stdio::devnull(),
@@ -339,16 +341,16 @@ impl<T> Daemonize<T> {
 
     /// Execute `action` just before dropping privileges. Most common usecase is to open listening socket.
     /// Result of `action` execution will be returned by `start` method.
-    pub fn privileged_action<N, F: Fn() -> N + Sized + 'static>(self, action: F) -> Daemonize<N> {
+    pub fn privileged_action<N, F: FnOnce() -> N + 'static>(self, action: F) -> Daemonize<N> {
         let mut new: Daemonize<N> = unsafe { transmute(self) };
-        new.privileged_action = Box::new(action);
+        new.privileged_action = BoxFnOnce::new(action);
         new
     }
 
     /// Execute `action` just before exiting the parent process. Most common usecase is to synchronize with
     /// forked processes.
-    pub fn exit_action<F: Fn() + Sized + 'static>(mut self, action: F) -> Daemonize<T> {
-        self.exit_action = Box::new(action);
+    pub fn exit_action<F: FnOnce() + 'static>(mut self, action: F) -> Daemonize<T> {
+        self.exit_action = BoxFnOnce::new(action);
         self
     }
 
@@ -380,13 +382,13 @@ impl<T> Daemonize<T> {
         unsafe {
             let pid_file_fd = maptry!(self.pid_file.clone(), create_pid_file);
 
-            try!(self.perform_fork(true));
+            try!(perform_fork(Some(self.exit_action)));
 
             try!(set_current_dir(&self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
             try!(set_sid());
             umask(self.umask);
 
-            try!(self.perform_fork(false));
+            try!(perform_fork(None));
 
             try!(redirect_standard_streams(self.stdin, self.stdout, self.stderr));
 
@@ -405,7 +407,7 @@ impl<T> Daemonize<T> {
                 maptry!(args, |(pid, uid, gid)| chown_pid_file(pid, uid, gid));
             }
 
-            let privileged_action_result = (self.privileged_action)();
+            let privileged_action_result = self.privileged_action.call();
 
             maptry!(self.root, change_root);
 
@@ -417,21 +419,20 @@ impl<T> Daemonize<T> {
             Ok(privileged_action_result)
         }
     }
+}
 
-    unsafe fn perform_fork(&self, do_exit_action: bool) -> Result<()> {
-        let pid = fork();
-        if pid < 0 {
-            Err(DaemonizeError::Fork)
-        } else if pid == 0 {
-            Ok(())
-        } else {
-            if do_exit_action {
-                (self.exit_action)();
-            }
-            exit(0)
+unsafe fn perform_fork(exit_action: Option<BoxFnOnce<'static, (), ()>>) -> Result<()> {
+    let pid = fork();
+    if pid < 0 {
+        Err(DaemonizeError::Fork)
+    } else if pid == 0 {
+        Ok(())
+    } else {
+        if let Some(exit_action) = exit_action {
+            exit_action.call()
         }
+        exit(0)
     }
-
 }
 
 unsafe fn set_sid() -> Result<()> {
