@@ -240,7 +240,7 @@ impl From<File> for Stdio {
 ///   * change the pid-file ownership to provided user (and/or) group;
 ///   * execute any provided action just before dropping privileges.
 ///
-pub struct Daemonize<T> {
+pub struct Daemonize<T, F: FnOnce() -> T + Sized + 'static> {
     directory: PathBuf,
     pid_file: Option<PathBuf>,
     chown_pid_file: bool,
@@ -248,13 +248,13 @@ pub struct Daemonize<T> {
     group: Option<Group>,
     umask: mode_t,
     root: Option<PathBuf>,
-    privileged_action: Box<Fn() -> T>,
+    privileged_action: Box<F>,
     stdin: Stdio,
     stdout: Stdio,
     stderr: Stdio,
 }
 
-impl<T> fmt::Debug for Daemonize<T> {
+impl<T, F: FnOnce() -> T + Sized + 'static> fmt::Debug for Daemonize<T, F> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Daemonize")
             .field("directory", &self.directory)
@@ -271,8 +271,7 @@ impl<T> fmt::Debug for Daemonize<T> {
     }
 }
 
-impl Daemonize<()> {
-
+impl Daemonize<(), fn() -> ()> {
     pub fn new() -> Self {
         Daemonize {
             directory: Path::new("/").to_owned(),
@@ -290,10 +289,9 @@ impl Daemonize<()> {
     }
 }
 
-impl<T> Daemonize<T> {
-
+impl<T, F: FnOnce() -> T + Sized + 'static> Daemonize<T, F> {
     /// Create pid-file at `path`, lock it exclusive and write daemon pid.
-    pub fn pid_file<F: AsRef<Path>>(mut self, path: F) -> Self {
+    pub fn pid_file<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.pid_file = Some(path.as_ref().to_owned());
         self
     }
@@ -305,7 +303,7 @@ impl<T> Daemonize<T> {
     }
 
     /// Change working directory to `path` or `/` by default.
-    pub fn working_directory<F: AsRef<Path>>(mut self, path: F) -> Self {
+    pub fn working_directory<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.directory = path.as_ref().to_owned();
         self
     }
@@ -329,15 +327,15 @@ impl<T> Daemonize<T> {
     }
 
     /// Change root to `path`
-    pub fn chroot<F: AsRef<Path>>(mut self, path: F) -> Self {
+    pub fn chroot<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.root = Some(path.as_ref().to_owned());
         self
     }
 
     /// Execute `action` just before dropping privileges. Most common usecase is to open listening socket.
     /// Result of `action` execution will be returned by `start` method.
-    pub fn privileged_action<N, F: Fn() -> N + Sized + 'static>(self, action: F) -> Daemonize<N> {
-        let mut new: Daemonize<N> = unsafe { transmute(self) };
+    pub fn privileged_action<N, P: FnOnce() -> N + Sized + 'static>(self, action: P) -> Daemonize<N, P> {
+        let mut new: Daemonize<N, P> = unsafe { transmute(self) };
         new.privileged_action = Box::new(action);
         new
     }
