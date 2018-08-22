@@ -109,6 +109,8 @@ pub enum DaemonizeError {
     ChownPidfile(Errno),
     /// Unable to redirect standard streams to /dev/null
     RedirectStreams(Errno),
+    /// No redirection requested when going to background
+    NoRedirectBackground,
     /// Unable to write self pid to pid file
     WritePid,
     /// Unable to chroot
@@ -138,6 +140,7 @@ impl DaemonizeError {
             DaemonizeError::LockPidfile(_) => "unable to lock pid file",
             DaemonizeError::ChownPidfile(_) => "unable to chown pid file",
             DaemonizeError::RedirectStreams(_) => "unable to redirect standard streams to /dev/null",
+            DaemonizeError::NoRedirectBackground => "not redirecting streams when going to background",
             DaemonizeError::WritePid => "unable to write self pid to pid file",
             DaemonizeError::Chroot(_) => "unable to chroot into directory",
             DaemonizeError::__Nonexhaustive => unreachable!(),
@@ -200,6 +203,7 @@ impl From<gid_t> for Group {
 #[derive(Debug)]
 enum StdioImp {
     Devnull,
+    NoRedirect,
     RedirectToFile(File),
 }
 
@@ -210,9 +214,19 @@ pub struct Stdio {
 }
 
 impl Stdio {
-    fn devnull() -> Self {
+    /// Direct to/from `/dev/null`
+    pub fn devnull() -> Self {
         Self {
             inner: StdioImp::Devnull
+        }
+    }
+    /// Disable redirecting of stdio.
+    ///
+    /// Note that this is allowed only if staying in foreground. If you configure not to redirect
+    /// and go into background, you'll get an error.
+    pub fn no_redirect() -> Self {
+        Self {
+            inner: StdioImp::NoRedirect
         }
     }
 }
@@ -341,6 +355,20 @@ impl<T> Daemonize<T> {
     ///
     /// The default is to go into background. It is sometimes useful to set to false and stay in
     /// foreground, mostly for debugging purposes.
+    ///
+    /// You might also want to keep the io streams not redirected.
+    ///
+    /// ```
+    /// use daemonize::{Daemonize, Stdio};
+    ///
+    /// Daemonize::new()
+    ///     .background(false)
+    ///     .stdin(Stdio::no_redirect())
+    ///     .stdout(Stdio::no_redirect())
+    ///     .stderr(Stdio::no_redirect())
+    ///     .start()
+    ///     .expect("Failed to daemonize");
+    /// ```
     pub fn background(mut self, background: bool) -> Self {
         self.background = background;
         self
@@ -354,13 +382,27 @@ impl<T> Daemonize<T> {
         new
     }
 
-    /// Configuration for the child process's standard output stream.
+    /// Configuration for the process's standard input stream.
+    ///
+    /// # Panics
+    ///
+    /// If file is passed (it can't redirect stdin to a file).
+    pub fn stdin<S: Into<Stdio>>(mut self, stdio: S) -> Self {
+        let stdin = stdio.into();
+        if let Stdio { inner: StdioImp::RedirectToFile(_) } = stdin {
+            panic!("Can't redirect stdin to a file");
+        }
+        self.stdin = stdin;
+        self
+    }
+
+    /// Configuration for the process's standard output stream.
     pub fn stdout<S: Into<Stdio>>(mut self, stdio: S) -> Self {
         self.stdout = stdio.into();
         self
     }
 
-    /// Configuration for the child process's standard error stream.
+    /// Configuration for the process's standard error stream.
     pub fn stderr<S: Into<Stdio>>(mut self, stdio: S) -> Self {
         self.stderr = stdio.into();
         self
@@ -368,6 +410,19 @@ impl<T> Daemonize<T> {
 
     /// Start daemonization process.
     pub fn start(self) -> std::result::Result<T, DaemonizeError> {
+        macro_rules! stream_check {
+            ($stream: ident) => (
+                if let Stdio { inner: StdioImp::NoRedirect } = self.$stream {
+                    return Err(DaemonizeError::NoRedirectBackground);
+                }
+            )
+        }
+
+        if self.background {
+            stream_check!(stdin);
+            stream_check!(stdout);
+            stream_check!(stderr);
+        }
         // Maps an Option<T> to Option<U> by applying a function Fn(T) -> Result<U, DaemonizeError>
         // to a contained value and try! it's result
         macro_rules! maptry {
@@ -450,13 +505,15 @@ unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) 
     }
 
     let process_stdio = |fd, stdio: Stdio| {
-        tryret!(close(fd), (), DaemonizeError::RedirectStreams);
         match stdio.inner {
+            StdioImp::NoRedirect => {},
             StdioImp::Devnull => {
+                tryret!(close(fd), (), DaemonizeError::RedirectStreams);
                 tryret!(dup2(devnull_fd, fd), (), DaemonizeError::RedirectStreams);
             },
             StdioImp::RedirectToFile(file) => {
                 let raw_fd = file.as_raw_fd();
+                tryret!(close(fd), (), DaemonizeError::RedirectStreams);
                 tryret!(dup2(raw_fd, fd), (), DaemonizeError::RedirectStreams);
             },
         };
