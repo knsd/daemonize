@@ -241,6 +241,7 @@ impl From<File> for Stdio {
 ///   * execute any provided action just before dropping privileges.
 ///
 pub struct Daemonize<T> {
+    background: bool,
     directory: PathBuf,
     pid_file: Option<PathBuf>,
     chown_pid_file: bool,
@@ -257,6 +258,7 @@ pub struct Daemonize<T> {
 impl<T> fmt::Debug for Daemonize<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Daemonize")
+            .field("background", &self.background)
             .field("directory", &self.directory)
             .field("pid_file", &self.pid_file)
             .field("chown_pid_file", &self.chown_pid_file)
@@ -275,6 +277,7 @@ impl Daemonize<()> {
 
     pub fn new() -> Self {
         Daemonize {
+            background: true,
             directory: Path::new("/").to_owned(),
             pid_file: None,
             chown_pid_file: false,
@@ -334,6 +337,15 @@ impl<T> Daemonize<T> {
         self
     }
 
+    /// Go into background
+    ///
+    /// The default is to go into background. It is sometimes useful to set to false and stay in
+    /// foreground, mostly for debugging purposes.
+    pub fn background(mut self, background: bool) -> Self {
+        self.background = background;
+        self
+    }
+
     /// Execute `action` just before dropping privileges. Most common usecase is to open listening socket.
     /// Result of `action` execution will be returned by `start` method.
     pub fn privileged_action<N, F: Fn() -> N + Sized + 'static>(self, action: F) -> Daemonize<N> {
@@ -370,13 +382,19 @@ impl<T> Daemonize<T> {
         unsafe {
             let pid_file_fd = maptry!(self.pid_file.clone(), create_pid_file);
 
-            try!(perform_fork());
+            if self.background {
+                try!(perform_fork());
+            }
 
             try!(set_current_dir(self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
-            try!(set_sid());
+            if self.background {
+                try!(set_sid());
+            }
             umask(self.umask);
 
-            try!(perform_fork());
+            if self.background {
+                try!(perform_fork());
+            }
 
             try!(redirect_standard_streams(self.stdin, self.stdout, self.stderr));
 
