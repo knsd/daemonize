@@ -8,30 +8,30 @@
 
 extern crate libc;
 
-use std::ffi::{CString};
+use std::ffi::CString;
 
 #[repr(C)]
 #[allow(dead_code)]
 struct passwd {
-    pw_name:   *const libc::c_char,
+    pw_name: *const libc::c_char,
     pw_passwd: *const libc::c_char,
-    pw_uid:    libc::uid_t,
-    pw_gid:    libc::gid_t,
-    pw_gecos:  *const libc::c_char,
-    pw_dir:    *const libc::c_char,
-    pw_shell:  *const libc::c_char,
+    pw_uid: libc::uid_t,
+    pw_gid: libc::gid_t,
+    pw_gecos: *const libc::c_char,
+    pw_dir: *const libc::c_char,
+    pw_shell: *const libc::c_char,
 }
 
 #[repr(C)]
 #[allow(dead_code)]
 struct group {
-    gr_name:   *const libc::c_char,
+    gr_name: *const libc::c_char,
     gr_passwd: *const libc::c_char,
-    gr_gid:    libc::gid_t,
-    gr_mem:    *const *const libc::c_char,
+    gr_gid: libc::gid_t,
+    gr_mem: *const *const libc::c_char,
 }
 
-extern {
+extern "C" {
     fn getgrnam(name: *const libc::c_char) -> *const group;
     fn getpwnam(name: *const libc::c_char) -> *const passwd;
     pub fn flock(fd: libc::c_int, operation: libc::c_int) -> libc::c_int;
@@ -81,10 +81,12 @@ mod tests {
 
     #[test]
     fn test_get_gid_by_name() {
-        let group_name = ::std::ffi::CString::new(match ::std::fs::metadata("/etc/debian_version") {
-            Ok(_) => "nogroup",
-            Err(_) => "nobody",
-        }).unwrap();
+        let group_name =
+            ::std::ffi::CString::new(match ::std::fs::metadata("/etc/debian_version") {
+                Ok(_) => "nogroup",
+                Err(_) => "nobody",
+            })
+            .unwrap();
         unsafe {
             let gid = get_gid_by_name(&group_name);
             assert_eq!(gid, Some(nobody_uid_gid()))

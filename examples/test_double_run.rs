@@ -1,7 +1,7 @@
 extern crate daemonize;
 
+use daemonize::Daemonize;
 use std::io::prelude::*;
-use daemonize::{Daemonize};
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
@@ -13,8 +13,7 @@ fn main() {
         Ok(()) => {
             file.write_all(b"ok").unwrap();
             std::thread::sleep(std::time::Duration::from_secs(10));
-
-        },
+        }
         Err(_) => file.write_all(b"error").unwrap(),
     };
 }
