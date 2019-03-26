@@ -345,12 +345,11 @@ impl<T> Daemonize<T> {
         new
     }
 
-    /// Execute `action` just before exiting the parent process. Most common usecase is to syncronize with
+    /// Execute `action` just before exiting the parent process. Most common usecase is to synchronize with
     /// forked processes.
-    pub fn exit_action<F: Fn() + Sized + 'static>(self, action: F) -> Daemonize<T> {
-        let mut new: Daemonize<T> = unsafe { transmute(self) };
-        new.exit_action = Box::new(action);
-        new
+    pub fn exit_action<F: Fn() + Sized + 'static>(mut self, action: F) -> Daemonize<T> {
+        self.exit_action = Box::new(action);
+        self
     }
 
     /// Configuration for the child process's standard output stream.
