@@ -1,6 +1,6 @@
 extern crate daemonize;
 
-use daemonize::{Daemonize};
+use daemonize::Daemonize;
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
@@ -10,7 +10,11 @@ fn main() {
     let stdout = std::fs::File::create(stdout).unwrap();
     let stderr = std::fs::File::create(stderr).unwrap();
 
-    Daemonize::new().stdout(stdout).stderr(stderr).start().unwrap();
+    Daemonize::new()
+        .stdout(stdout)
+        .stderr(stderr)
+        .start()
+        .unwrap();
 
     println!("stdout");
     println!("newline");
