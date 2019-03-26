@@ -56,7 +56,7 @@ fn double_run() {
     let first_result = tmpdir.path().join("first");
     let second_result = tmpdir.path().join("second");
 
-    for file in vec![&first_result, &second_result] {
+    for file in &[&first_result, &second_result] {
         let args = vec![pid_file.to_str().unwrap(), file.to_str().unwrap()];
         run("target/debug/examples/test_double_run", &args);
     }

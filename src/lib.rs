@@ -44,9 +44,6 @@
 //! }
 //! ```
 
-#![cfg_attr(feature="clippy", feature(plugin))]
-#![cfg_attr(feature="clippy", plugin(clippy))]
-
 mod ffi;
 
 extern crate boxfnonce;
@@ -74,7 +71,8 @@ macro_rules! tryret {
         if $expr == -1 {
             return Err($err(errno()))
         } else {
-            $ret
+            #[allow(clippy::unused_unit)]
+            {$ret}
         }
     )
 }
@@ -149,7 +147,7 @@ impl DaemonizeError {
 }
 
 impl std::fmt::Display for DaemonizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.__description().fmt(f)
     }
 }
@@ -259,7 +257,7 @@ pub struct Daemonize<T> {
 }
 
 impl<T> fmt::Debug for Daemonize<T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Daemonize")
             .field("directory", &self.directory)
             .field("pid_file", &self.pid_file)
@@ -277,6 +275,7 @@ impl<T> fmt::Debug for Daemonize<T> {
 
 impl Daemonize<()> {
 
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Daemonize {
             directory: Path::new("/").to_owned(),
@@ -440,7 +439,7 @@ unsafe fn set_sid() -> Result<()> {
 }
 
 unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) -> Result<()> {
-    let devnull_fd = open(transmute(b"/dev/null\0"), libc::O_RDWR);
+    let devnull_fd = open(b"/dev/null\0" as *const [u8; 10] as *const i8, libc::O_RDWR);
     if -1 == devnull_fd {
         return Err(DaemonizeError::RedirectStreams(errno()))
     }
@@ -526,7 +525,7 @@ unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
     if -1 == ftruncate(fd, 0) {
         return Err(DaemonizeError::WritePid)
     }
-    if write(fd, transmute(pid_c.as_ptr()), pid_length) < pid_length as isize {
+    if write(fd, pid_c.as_ptr() as *const libc::c_void, pid_length) < pid_length as isize {
         Err(DaemonizeError::WritePid)
     } else {
         Ok(())

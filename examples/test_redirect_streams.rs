@@ -4,8 +4,8 @@ use daemonize::{Daemonize};
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
-    let ref stdout = *args[1];
-    let ref stderr = *args[2];
+    let stdout = &args[1];
+    let stderr = &args[2];
 
     let stdout = std::fs::File::create(stdout).unwrap();
     let stderr = std::fs::File::create(stderr).unwrap();

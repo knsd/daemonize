@@ -13,10 +13,6 @@ categories = ["os::unix-apis"]
 [dependencies]
 boxfnonce = "0.1.1"
 libc = "0.2.4"
-clippy = {version = "0.0", optional = true}
 
 [dev-dependencies]
 tempdir = "0.3.4"
-
-[features]
-default=[]
