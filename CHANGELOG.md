@@ -3,6 +3,14 @@ daemonize changelog
 
 Here you can see the full list of changes between each daemonize release.
 
+Version 0.4.0
+-------------
+
+Released on March 26, 2019
+
+  * Allow an action by the master process right before exit, #33
+  * Make privileged action and exit action a FnOnce, #27
+
 Version 0.3.0
 -------------
 
