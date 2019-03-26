@@ -34,6 +34,7 @@
 //!         .umask(0o777)    // Set umask, `0o027` by default.
 //!         .stdout(stdout)  // Redirect stdout to `/tmp/daemon.out`.
 //!         .stderr(stderr)  // Redirect stderr to `/tmp/daemon.err`.
+//!         .exit_action(|| println!("Executed before master process exits"))
 //!         .privileged_action(|| "Executed before drop privileges");
 //!
 //!     match daemonize.start() {
@@ -249,6 +250,7 @@ pub struct Daemonize<T> {
     umask: mode_t,
     root: Option<PathBuf>,
     privileged_action: Box<Fn() -> T>,
+    exit_action: Box<Fn()>,
     stdin: Stdio,
     stdout: Stdio,
     stderr: Stdio,
@@ -282,6 +284,7 @@ impl Daemonize<()> {
             group: None,
             umask: 0o027,
             privileged_action: Box::new(|| ()),
+            exit_action: Box::new(|| ()),
             root: None,
             stdin: Stdio::devnull(),
             stdout: Stdio::devnull(),
@@ -342,6 +345,13 @@ impl<T> Daemonize<T> {
         new
     }
 
+    /// Execute `action` just before exiting the parent process. Most common usecase is to synchronize with
+    /// forked processes.
+    pub fn exit_action<F: Fn() + Sized + 'static>(mut self, action: F) -> Daemonize<T> {
+        self.exit_action = Box::new(action);
+        self
+    }
+
     /// Configuration for the child process's standard output stream.
     pub fn stdout<S: Into<Stdio>>(mut self, stdio: S) -> Self {
         self.stdout = stdio.into();
@@ -370,13 +380,13 @@ impl<T> Daemonize<T> {
         unsafe {
             let pid_file_fd = maptry!(self.pid_file.clone(), create_pid_file);
 
-            try!(perform_fork());
+            try!(self.perform_fork(true));
 
-            try!(set_current_dir(self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
+            try!(set_current_dir(&self.directory).map_err(|_| DaemonizeError::ChangeDirectory));
             try!(set_sid());
             umask(self.umask);
 
-            try!(perform_fork());
+            try!(self.perform_fork(false));
 
             try!(redirect_standard_streams(self.stdin, self.stdout, self.stderr));
 
@@ -408,17 +418,20 @@ impl<T> Daemonize<T> {
         }
     }
 
-}
-
-unsafe fn perform_fork() -> Result<()> {
-    let pid = fork();
-    if pid < 0 {
-        Err(DaemonizeError::Fork)
-    } else if pid == 0 {
-        Ok(())
-    } else {
-        exit(0)
+    unsafe fn perform_fork(&self, do_exit_action: bool) -> Result<()> {
+        let pid = fork();
+        if pid < 0 {
+            Err(DaemonizeError::Fork)
+        } else if pid == 0 {
+            Ok(())
+        } else {
+            if do_exit_action {
+                (self.exit_action)();
+            }
+            exit(0)
+        }
     }
+
 }
 
 unsafe fn set_sid() -> Result<()> {
