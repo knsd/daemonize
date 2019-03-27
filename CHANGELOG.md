@@ -3,6 +3,13 @@ daemonize changelog
 
 Here you can see the full list of changes between each daemonize release.
 
+Version 0.4.1
+-------------
+
+Released on March 27, 2019
+
+  * Fix armv7 build, #34
+
 Version 0.4.0
 -------------
 
