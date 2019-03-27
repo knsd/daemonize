@@ -444,7 +444,7 @@ unsafe fn set_sid() -> Result<()> {
 }
 
 unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) -> Result<()> {
-    let devnull_fd = open(b"/dev/null\0" as *const [u8; 10] as *const i8, libc::O_RDWR);
+    let devnull_fd = open(b"/dev/null\0" as *const [u8; 10] as _, libc::O_RDWR);
     if -1 == devnull_fd {
         return Err(DaemonizeError::RedirectStreams(errno()));
     }
