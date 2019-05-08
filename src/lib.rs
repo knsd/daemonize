@@ -44,10 +44,9 @@
 //! }
 //! ```
 
+mod error;
 mod ffi;
-
-extern crate boxfnonce;
-extern crate libc;
+mod usergroup;
 
 use std::env::set_current_dir;
 use std::ffi::CString;
@@ -61,11 +60,13 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use boxfnonce::BoxFnOnce;
+use error::*;
 use libc::{
-    c_int, close, dup2, fork, ftruncate, getpid, open, setgid, setsid, setuid, umask, write,
-    LOCK_EX, LOCK_NB,
+    close, dup2, fork, ftruncate, getpid, open, setgid, setsid, setuid, umask, write, LOCK_EX,
+    LOCK_NB,
 };
 pub use libc::{gid_t, mode_t, uid_t};
+use usergroup::UserGroup;
 
 use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
 
@@ -82,91 +83,6 @@ macro_rules! tryret {
     };
 }
 
-pub type Errno = c_int;
-
-/// This error type for `Daemonize` `start` method.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub enum DaemonizeError {
-    /// Unable to fork
-    Fork,
-    /// Unable to create new session
-    DetachSession(Errno),
-    /// Unable to resolve group name to group id
-    GroupNotFound,
-    /// Group option contains NUL
-    GroupContainsNul,
-    /// Unable to set group
-    SetGroup(Errno),
-    /// Unable to resolve user name to user id
-    UserNotFound,
-    /// User option contains NUL
-    UserContainsNul,
-    /// Unable to set user
-    SetUser(Errno),
-    /// Unable to change directory
-    ChangeDirectory,
-    /// pid_file option contains NUL
-    PathContainsNul,
-    /// Unable to open pid file
-    OpenPidfile,
-    /// Unable to lock pid file
-    LockPidfile(Errno),
-    /// Unable to chown pid file
-    ChownPidfile(Errno),
-    /// Unable to redirect standard streams to /dev/null
-    RedirectStreams(Errno),
-    /// Unable to write self pid to pid file
-    WritePid,
-    /// Unable to chroot
-    Chroot(Errno),
-    // Hints that destructuring should not be exhaustive.
-    // This enum may grow additional variants, so this makes sure clients
-    // don't count on exhaustive matching. Otherwise, adding a new variant
-    // could break existing code.
-    #[doc(hidden)]
-    __Nonexhaustive,
-}
-
-impl DaemonizeError {
-    fn __description(&self) -> &str {
-        match *self {
-            DaemonizeError::Fork => "unable to fork",
-            DaemonizeError::DetachSession(_) => "unable to create new session",
-            DaemonizeError::GroupNotFound => "unable to resolve group name to group id",
-            DaemonizeError::GroupContainsNul => "group option contains NUL",
-            DaemonizeError::SetGroup(_) => "unable to set group",
-            DaemonizeError::UserNotFound => "unable to resolve user name to user id",
-            DaemonizeError::UserContainsNul => "user option contains NUL",
-            DaemonizeError::SetUser(_) => "unable to set user",
-            DaemonizeError::ChangeDirectory => "unable to change directory",
-            DaemonizeError::PathContainsNul => "pid_file option contains NUL",
-            DaemonizeError::OpenPidfile => "unable to open pid file",
-            DaemonizeError::LockPidfile(_) => "unable to lock pid file",
-            DaemonizeError::ChownPidfile(_) => "unable to chown pid file",
-            DaemonizeError::RedirectStreams(_) => {
-                "unable to redirect standard streams to /dev/null"
-            }
-            DaemonizeError::WritePid => "unable to write self pid to pid file",
-            DaemonizeError::Chroot(_) => "unable to chroot into directory",
-            DaemonizeError::__Nonexhaustive => unreachable!(),
-        }
-    }
-}
-
-impl std::fmt::Display for DaemonizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.__description().fmt(f)
-    }
-}
-
-impl std::error::Error for DaemonizeError {
-    fn description(&self) -> &str {
-        self.__description()
-    }
-}
-
-type Result<T> = std::result::Result<T, DaemonizeError>;
-
 /// Expects system user id or name. If name is provided it will be resolved to id later.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum User {
@@ -177,6 +93,12 @@ pub enum User {
 impl<'a> From<&'a str> for User {
     fn from(t: &'a str) -> User {
         User::Name(t.to_owned())
+    }
+}
+
+impl From<String> for User {
+    fn from(t: String) -> User {
+        User::Name(t)
     }
 }
 
@@ -196,6 +118,12 @@ pub enum Group {
 impl<'a> From<&'a str> for Group {
     fn from(t: &'a str) -> Group {
         Group::Name(t.to_owned())
+    }
+}
+
+impl From<String> for Group {
+    fn from(t: String) -> Group {
+        Group::Name(t)
     }
 }
 
@@ -280,15 +208,15 @@ impl<T> fmt::Debug for Daemonize<T> {
     }
 }
 
-impl Daemonize<()> {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+impl Default for Daemonize<()> {
+    fn default() -> Self {
+        let user_group = UserGroup::get().unwrap_or(UserGroup::default());
         Daemonize {
             directory: Path::new("/").to_owned(),
             pid_file: None,
             chown_pid_file: false,
-            user: None,
-            group: None,
+            user: user_group.user,
+            group: user_group.group,
             umask: 0o027,
             privileged_action: BoxFnOnce::new(|| ()),
             exit_action: BoxFnOnce::new(|| ()),
@@ -297,6 +225,13 @@ impl Daemonize<()> {
             stdout: Stdio::devnull(),
             stderr: Stdio::devnull(),
         }
+    }
+}
+
+impl Daemonize<()> {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -378,7 +313,7 @@ impl<T> Daemonize<T> {
             ($expr:expr, $f: expr) => {
                 match $expr {
                     None => None,
-                    Some(x) => Some(try!($f(x))),
+                    Some(x) => Some($f(x)?),
                 };
             };
         }
