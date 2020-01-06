@@ -444,7 +444,10 @@ unsafe fn set_sid() -> Result<()> {
 }
 
 unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) -> Result<()> {
-    let devnull_fd = open(b"/dev/null\0" as *const [u8; 10] as _, libc::O_RDWR);
+    let devnull_fd = open(
+        b"/dev/null\0" as *const [u8; 10] as _,
+        libc::O_CLOEXEC | libc::O_RDWR,
+    );
     if -1 == devnull_fd {
         return Err(DaemonizeError::RedirectStreams(errno()));
     }
@@ -509,7 +512,11 @@ unsafe fn set_user(user: uid_t) -> Result<()> {
 unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
     let path_c = pathbuf_into_cstring(path)?;
 
-    let fd = open(path_c.as_ptr(), libc::O_WRONLY | libc::O_CREAT, 0o666);
+    let fd = open(
+        path_c.as_ptr(),
+        libc::O_CLOEXEC | libc::O_WRONLY | libc::O_CREAT,
+        0o666,
+    );
     if -1 == fd {
         return Err(DaemonizeError::OpenPidfile);
     }
