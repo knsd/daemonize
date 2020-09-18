@@ -1,10 +1,10 @@
 extern crate libc;
-extern crate tempdir;
+extern crate tempfile;
 
 use std::ffi::OsStr;
 use std::io::prelude::*;
 
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 fn run<S: AsRef<OsStr>>(cmd: S, args: &[S]) -> u32 {
     let mut cmd = std::process::Command::new(cmd);
@@ -21,7 +21,7 @@ fn run<S: AsRef<OsStr>>(cmd: S, args: &[S]) -> u32 {
 
 #[test]
 fn test_umask_chdir() {
-    let tmpdir = TempDir::new("chdir").unwrap();
+    let tmpdir = TempDir::new().unwrap();
 
     // third argument is the umask: 255 == 0o377
     let args = vec![tmpdir.path().to_str().unwrap(), "test", "255"];
@@ -40,7 +40,7 @@ fn test_umask_chdir() {
 
 #[test]
 fn test_pid() {
-    let tmpdir = TempDir::new("chdir").unwrap();
+    let tmpdir = TempDir::new().unwrap();
     let pid_file = tmpdir.path().join("pid");
 
     let args = vec![pid_file.to_str().unwrap()];
@@ -57,7 +57,7 @@ fn test_pid() {
 
 #[test]
 fn double_run() {
-    let tmpdir = TempDir::new("double_run").unwrap();
+    let tmpdir = TempDir::new().unwrap();
     let pid_file = tmpdir.path().join("pid");
     let first_result = tmpdir.path().join("first");
     let second_result = tmpdir.path().join("second");
@@ -90,7 +90,7 @@ fn double_run() {
 #[test]
 #[cfg(target_os = "macos")]
 fn test_uid_gid() {
-    let tmpdir = TempDir::new("uid_gid").unwrap();
+    let tmpdir = TempDir::new().unwrap();
     let result_file = tmpdir.path().join("result");
 
     let args = vec!["nobody", "daemon", &result_file.to_str().unwrap()];
@@ -109,7 +109,7 @@ fn test_uid_gid() {
 
 #[test]
 fn test_redirect_streams() {
-    let tmpdir = TempDir::new("redirect").unwrap();
+    let tmpdir = TempDir::new().unwrap();
     let stdout_file = tmpdir.path().join("stdout");
     let stderr_file = tmpdir.path().join("stderr");
 
