@@ -6,7 +6,7 @@ Here you can see the full list of changes between each daemonize release.
 Version 0.5.0
 -------------
 
-
+  * Make tests pass on NetBSD, #37
 
 Version 0.4.1
 -------------
