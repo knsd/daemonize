@@ -60,11 +60,6 @@ use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use libc::{
-    close, dup2, fork, ftruncate, getpid, open, setgid, setsid, setuid, umask, write, LOCK_EX,
-    LOCK_NB,
-};
-
 use self::error::{Errno, ErrorKind};
 use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
 
@@ -140,6 +135,7 @@ impl From<libc::gid_t> for Group {
 }
 
 /// File mode creation mask.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Mask {
     inner: libc::mode_t,
 }
@@ -340,7 +336,7 @@ impl<T> Daemonize<T> {
 
             set_current_dir(&self.directory).map_err(|_| ErrorKind::ChangeDirectory(errno()))?;
             set_sid()?;
-            umask(self.umask.inner);
+            libc::umask(self.umask.inner);
 
             perform_fork(None)?;
 
@@ -377,7 +373,7 @@ impl<T> Daemonize<T> {
 }
 
 unsafe fn perform_fork(exit_action: Option<Box<dyn FnOnce()>>) -> Result<(), ErrorKind> {
-    let pid = fork();
+    let pid = libc::fork();
     if pid < 0 {
         Err(ErrorKind::Fork(errno()))
     } else if pid == 0 {
@@ -391,7 +387,7 @@ unsafe fn perform_fork(exit_action: Option<Box<dyn FnOnce()>>) -> Result<(), Err
 }
 
 unsafe fn set_sid() -> Result<(), ErrorKind> {
-    tryret!(setsid(), Ok(()), ErrorKind::DetachSession)
+    tryret!(libc::setsid(), Ok(()), ErrorKind::DetachSession)
 }
 
 unsafe fn redirect_standard_streams(
@@ -399,7 +395,7 @@ unsafe fn redirect_standard_streams(
     stdout: Stdio,
     stderr: Stdio,
 ) -> Result<(), ErrorKind> {
-    let devnull_fd = open(b"/dev/null\0" as *const [u8; 10] as _, libc::O_RDWR);
+    let devnull_fd = libc::open(b"/dev/null\0" as *const [u8; 10] as _, libc::O_RDWR);
     if -1 == devnull_fd {
         return Err(ErrorKind::OpenDevnull(errno()));
     }
@@ -407,11 +403,11 @@ unsafe fn redirect_standard_streams(
     let process_stdio = |fd, stdio: Stdio| {
         match stdio.inner {
             StdioImpl::Devnull => {
-                tryret!(dup2(devnull_fd, fd), (), ErrorKind::RedirectStreams);
+                tryret!(libc::dup2(devnull_fd, fd), (), ErrorKind::RedirectStreams);
             }
             StdioImpl::RedirectToFile(file) => {
                 let raw_fd = file.as_raw_fd();
-                tryret!(dup2(raw_fd, fd), (), ErrorKind::RedirectStreams);
+                tryret!(libc::dup2(raw_fd, fd), (), ErrorKind::RedirectStreams);
             }
         };
         Ok(())
@@ -421,7 +417,7 @@ unsafe fn redirect_standard_streams(
     process_stdio(libc::STDOUT_FILENO, stdout)?;
     process_stdio(libc::STDERR_FILENO, stderr)?;
 
-    tryret!(close(devnull_fd), (), ErrorKind::CloseDevnull);
+    tryret!(libc::close(devnull_fd), (), ErrorKind::CloseDevnull);
 
     Ok(())
 }
@@ -440,7 +436,7 @@ unsafe fn get_group(group: Group) -> Result<libc::gid_t, ErrorKind> {
 }
 
 unsafe fn set_group(group: libc::gid_t) -> Result<(), ErrorKind> {
-    tryret!(setgid(group), Ok(()), ErrorKind::SetGroup)
+    tryret!(libc::setgid(group), Ok(()), ErrorKind::SetGroup)
 }
 
 unsafe fn get_user(user: User) -> Result<libc::uid_t, ErrorKind> {
@@ -457,7 +453,7 @@ unsafe fn get_user(user: User) -> Result<libc::uid_t, ErrorKind> {
 }
 
 unsafe fn set_user(user: libc::uid_t) -> Result<(), ErrorKind> {
-    tryret!(setuid(user), Ok(()), ErrorKind::SetUser)
+    tryret!(libc::setuid(user), Ok(()), ErrorKind::SetUser)
 }
 
 unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int, ErrorKind> {
@@ -469,7 +465,7 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int, ErrorKind> {
     #[cfg(not(target_os = "redox"))]
     let open_flags = libc::O_WRONLY | libc::O_CREAT;
 
-    let fd = open(path_c.as_ptr(), open_flags, 0o666);
+    let fd = libc::open(path_c.as_ptr(), open_flags, 0o666);
 
     if fd == -1 {
         return Err(ErrorKind::OpenPidfile(errno()));
@@ -486,7 +482,11 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int, ErrorKind> {
         };
     };
 
-    tryret!(flock(fd, LOCK_EX | LOCK_NB), Ok(fd), ErrorKind::LockPidfile)
+    tryret!(
+        flock(fd, libc::LOCK_EX | libc::LOCK_NB),
+        Ok(fd),
+        ErrorKind::LockPidfile
+    )
 }
 
 unsafe fn chown_pid_file(
@@ -503,14 +503,14 @@ unsafe fn chown_pid_file(
 }
 
 unsafe fn write_pid_file(fd: libc::c_int) -> Result<(), ErrorKind> {
-    let pid = getpid();
+    let pid = libc::getpid();
     let pid_buf = format!("{}", pid).into_bytes();
     let pid_length = pid_buf.len();
     let pid_c = CString::new(pid_buf).unwrap();
-    if -1 == ftruncate(fd, 0) {
+    if -1 == libc::ftruncate(fd, 0) {
         return Err(ErrorKind::WritePid);
     }
-    if write(fd, pid_c.as_ptr() as *const libc::c_void, pid_length) < pid_length as isize {
+    if libc::write(fd, pid_c.as_ptr() as *const libc::c_void, pid_length) < pid_length as isize {
         Err(ErrorKind::WritePid)
     } else {
         Ok(())
