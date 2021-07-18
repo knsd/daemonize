@@ -508,10 +508,28 @@ unsafe fn set_user(user: uid_t) -> Result<()> {
 unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
     let path_c = pathbuf_into_cstring(path)?;
 
-    let fd = open(path_c.as_ptr(), libc::O_WRONLY | libc::O_CREAT, 0o666);
-    if -1 == fd {
+    #[cfg(target_os = "redox")]
+    let open_flags = libc::O_CLOEXEC | libc::O_WRONLY | libc::O_CREAT;
+
+    #[cfg(not(target_os = "redox"))]
+    let open_flags = libc::O_WRONLY | libc::O_CREAT;
+
+    let fd = open(path_c.as_ptr(), open_flags, 0o666, );
+
+    if fd == -1 {
         return Err(DaemonizeError::OpenPidfile);
     }
+
+    if cfg!(not(target_os = "redox")) {
+        let flags = libc::fcntl(fd, libc::F_GETFD);
+        if flags == -1 {
+            return Err(DaemonizeError::OpenPidfile);
+        }
+
+        if libc::fcntl(fd,libc::F_SETFD, flags | libc::FD_CLOEXEC) == -1 {
+            return Err(DaemonizeError::OpenPidfile);
+        };
+    };
 
     tryret!(
         flock(fd, LOCK_EX | LOCK_NB),
