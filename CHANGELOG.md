@@ -11,6 +11,7 @@ Version 0.5.0
   * Replace dependency tempdir with tempfile, #42
   * Replace try! with ?
   * Don't leak pid file into children, #39
+  * Remove boxfnonce dependency
 
 Version 0.4.1
 -------------

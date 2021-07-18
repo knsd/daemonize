@@ -11,8 +11,7 @@ keywords = ["daemon", "daemonize", "unix"]
 categories = ["os::unix-apis"]
 
 [dependencies]
-boxfnonce = "0.1.1"
-libc = "0.2.4"
+libc = "0.2.98"
 
 [dev-dependencies]
-tempfile = "3.1.0"
+tempfile = "3.2.0"
