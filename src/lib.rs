@@ -7,7 +7,7 @@
 // except according to those terms.
 
 //!
-//! daemonize is a library for writing system daemons. Inspired by the Python library [thesharp/daemonize](https://github.com/thesharp/daemonize).
+//! daemonize is a library for writing system daemons. Inspired by the Python library [thesharp/daemonize](https://hub.com/thesharp/daemonize).
 //!
 //! The respository is located at https://github.com/knsd/daemonize/.
 //!
@@ -60,11 +60,11 @@ use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
+pub use libc::mode_t;
 use libc::{
     close, dup2, fork, ftruncate, getpid, open, setgid, setsid, setuid, umask, write, LOCK_EX,
     LOCK_NB,
 };
-pub use libc::{gid_t, mode_t, uid_t};
 
 use self::error::{Errno, ErrorKind};
 use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
@@ -84,41 +84,59 @@ macro_rules! tryret {
     };
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+enum UserImpl {
+    Name(String),
+    Id(libc::uid_t),
+}
+
 /// Expects system user id or name. If name is provided it will be resolved to id later.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub enum User {
+pub struct User {
+    inner: UserImpl,
+}
+
+impl From<&str> for User {
+    fn from(t: &str) -> User {
+        User {
+            inner: UserImpl::Name(t.to_owned()),
+        }
+    }
+}
+
+impl From<libc::uid_t> for User {
+    fn from(t: libc::uid_t) -> User {
+        User {
+            inner: UserImpl::Id(t),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+enum GroupImpl {
     Name(String),
-    Id(uid_t),
-}
-
-impl<'a> From<&'a str> for User {
-    fn from(t: &'a str) -> User {
-        User::Name(t.to_owned())
-    }
-}
-
-impl From<uid_t> for User {
-    fn from(t: uid_t) -> User {
-        User::Id(t)
-    }
+    Id(libc::uid_t),
 }
 
 /// Expects system group id or name. If name is provided it will be resolved to id later.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub enum Group {
-    Name(String),
-    Id(gid_t),
+pub struct Group {
+    inner: GroupImpl,
 }
 
-impl<'a> From<&'a str> for Group {
-    fn from(t: &'a str) -> Group {
-        Group::Name(t.to_owned())
+impl From<&str> for Group {
+    fn from(t: &str) -> Group {
+        Group {
+            inner: GroupImpl::Name(t.to_owned()),
+        }
     }
 }
 
-impl From<gid_t> for Group {
-    fn from(t: gid_t) -> Group {
-        Group::Id(t)
+impl From<libc::gid_t> for Group {
+    fn from(t: libc::gid_t) -> Group {
+        Group {
+            inner: GroupImpl::Id(t),
+        }
     }
 }
 
@@ -322,13 +340,14 @@ impl<T> Daemonize<T> {
             let gid = maptry!(self.group, get_group);
 
             if self.chown_pid_file {
-                let args: Option<(PathBuf, uid_t, gid_t)> = match (self.pid_file, uid, gid) {
-                    (Some(pid), Some(uid), Some(gid)) => Some((pid, uid, gid)),
-                    (Some(pid), None, Some(gid)) => Some((pid, uid_t::MAX - 1, gid)),
-                    (Some(pid), Some(uid), None) => Some((pid, uid, gid_t::MAX - 1)),
-                    // Or pid file is not provided, or both user and group
-                    _ => None,
-                };
+                let args: Option<(PathBuf, libc::uid_t, libc::gid_t)> =
+                    match (self.pid_file, uid, gid) {
+                        (Some(pid), Some(uid), Some(gid)) => Some((pid, uid, gid)),
+                        (Some(pid), None, Some(gid)) => Some((pid, libc::uid_t::MAX - 1, gid)),
+                        (Some(pid), Some(uid), None) => Some((pid, uid, libc::gid_t::MAX - 1)),
+                        // Or pid file is not provided, or both user and group
+                        _ => None,
+                    };
 
                 maptry!(args, |(pid, uid, gid)| chown_pid_file(pid, uid, gid));
             }
@@ -397,37 +416,37 @@ unsafe fn redirect_standard_streams(
     Ok(())
 }
 
-unsafe fn get_group(group: Group) -> Result<gid_t, ErrorKind> {
-    match group {
-        Group::Id(id) => Ok(id),
-        Group::Name(name) => {
+unsafe fn get_group(group: Group) -> Result<libc::gid_t, ErrorKind> {
+    match group.inner {
+        GroupImpl::Id(id) => Ok(id),
+        GroupImpl::Name(name) => {
             let s = CString::new(name).map_err(|_| ErrorKind::GroupContainsNul)?;
             match get_gid_by_name(&s) {
-                Some(id) => get_group(Group::Id(id)),
+                Some(id) => get_group(id.into()),
                 None => Err(ErrorKind::GroupNotFound),
             }
         }
     }
 }
 
-unsafe fn set_group(group: gid_t) -> Result<(), ErrorKind> {
+unsafe fn set_group(group: libc::gid_t) -> Result<(), ErrorKind> {
     tryret!(setgid(group), Ok(()), ErrorKind::SetGroup)
 }
 
-unsafe fn get_user(user: User) -> Result<uid_t, ErrorKind> {
-    match user {
-        User::Id(id) => Ok(id),
-        User::Name(name) => {
+unsafe fn get_user(user: User) -> Result<libc::uid_t, ErrorKind> {
+    match user.inner {
+        UserImpl::Id(id) => Ok(id),
+        UserImpl::Name(name) => {
             let s = CString::new(name).map_err(|_| ErrorKind::UserContainsNul)?;
             match get_uid_by_name(&s) {
-                Some(id) => get_user(User::Id(id)),
+                Some(id) => get_user(id.into()),
                 None => Err(ErrorKind::UserNotFound),
             }
         }
     }
 }
 
-unsafe fn set_user(user: uid_t) -> Result<(), ErrorKind> {
+unsafe fn set_user(user: libc::uid_t) -> Result<(), ErrorKind> {
     tryret!(setuid(user), Ok(()), ErrorKind::SetUser)
 }
 
@@ -460,7 +479,11 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int, ErrorKind> {
     tryret!(flock(fd, LOCK_EX | LOCK_NB), Ok(fd), ErrorKind::LockPidfile)
 }
 
-unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<(), ErrorKind> {
+unsafe fn chown_pid_file(
+    path: PathBuf,
+    uid: libc::uid_t,
+    gid: libc::gid_t,
+) -> Result<(), ErrorKind> {
     let path_c = pathbuf_into_cstring(path)?;
     tryret!(
         libc::chown(path_c.as_ptr(), uid, gid),
