@@ -91,7 +91,7 @@ mod tests {
             let gid = get_gid_by_name(&group_name);
             // NetBSD does not necessarily use the same gid as uid for nobody so skip this
             if cfg!(target_os = "netbsd") {
-                assert_eq!(1,1)
+                assert_eq!(1, 1)
             } else {
                 assert_eq!(gid, Some(nobody_uid_gid()))
             }

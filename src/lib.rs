@@ -514,7 +514,7 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
     #[cfg(not(target_os = "redox"))]
     let open_flags = libc::O_WRONLY | libc::O_CREAT;
 
-    let fd = open(path_c.as_ptr(), open_flags, 0o666, );
+    let fd = open(path_c.as_ptr(), open_flags, 0o666);
 
     if fd == -1 {
         return Err(DaemonizeError::OpenPidfile);
@@ -526,7 +526,7 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
             return Err(DaemonizeError::OpenPidfile);
         }
 
-        if libc::fcntl(fd,libc::F_SETFD, flags | libc::FD_CLOEXEC) == -1 {
+        if libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) == -1 {
             return Err(DaemonizeError::OpenPidfile);
         };
     };
