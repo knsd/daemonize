@@ -60,7 +60,6 @@ use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-pub use libc::mode_t;
 use libc::{
     close, dup2, fork, ftruncate, getpid, open, setgid, setsid, setuid, umask, write, LOCK_EX,
     LOCK_NB,
@@ -140,6 +139,17 @@ impl From<libc::gid_t> for Group {
     }
 }
 
+/// File mode creation mask.
+pub struct Mask {
+    inner: libc::mode_t,
+}
+
+impl From<libc::mode_t> for Mask {
+    fn from(inner: libc::mode_t) -> Mask {
+        Mask { inner }
+    }
+}
+
 #[derive(Debug)]
 enum StdioImpl {
     Devnull,
@@ -189,7 +199,7 @@ pub struct Daemonize<T> {
     chown_pid_file: bool,
     user: Option<User>,
     group: Option<Group>,
-    umask: mode_t,
+    umask: Mask,
     root: Option<PathBuf>,
     privileged_action: Box<dyn FnOnce() -> T>,
     exit_action: Box<dyn FnOnce()>,
@@ -229,7 +239,7 @@ impl Daemonize<()> {
             chown_pid_file: false,
             user: None,
             group: None,
-            umask: 0o027,
+            umask: 0o027.into(),
             privileged_action: Box::new(|| ()),
             exit_action: Box::new(|| ()),
             root: None,
@@ -272,8 +282,8 @@ impl<T> Daemonize<T> {
     }
 
     /// Change umask to `mask` or `0o027` by default.
-    pub fn umask(mut self, mask: mode_t) -> Self {
-        self.umask = mask;
+    pub fn umask<M: Into<Mask>>(mut self, mask: M) -> Self {
+        self.umask = mask.into();
         self
     }
 
@@ -330,7 +340,7 @@ impl<T> Daemonize<T> {
 
             set_current_dir(&self.directory).map_err(|_| ErrorKind::ChangeDirectory(errno()))?;
             set_sid()?;
-            umask(self.umask);
+            umask(self.umask.inner);
 
             perform_fork(None)?;
 
