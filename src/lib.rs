@@ -66,8 +66,10 @@ use libc::{
 };
 pub use libc::{gid_t, mode_t, uid_t};
 
-use self::error::{Errno, Error, ErrorKind};
+use self::error::{Errno, ErrorKind};
 use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
+
+pub use self::error::Error;
 
 macro_rules! tryret {
     ($expr:expr, $ret:expr, $err:expr) => {
@@ -121,7 +123,7 @@ impl From<gid_t> for Group {
 }
 
 #[derive(Debug)]
-enum StdioImp {
+enum StdioImpl {
     Devnull,
     RedirectToFile(File),
 }
@@ -129,13 +131,13 @@ enum StdioImp {
 /// Describes what to do with a standard I/O stream for a child process.
 #[derive(Debug)]
 pub struct Stdio {
-    inner: StdioImp,
+    inner: StdioImpl,
 }
 
 impl Stdio {
     fn devnull() -> Self {
         Self {
-            inner: StdioImp::Devnull,
+            inner: StdioImpl::Devnull,
         }
     }
 }
@@ -143,7 +145,7 @@ impl Stdio {
 impl From<File> for Stdio {
     fn from(file: File) -> Self {
         Self {
-            inner: StdioImp::RedirectToFile(file),
+            inner: StdioImpl::RedirectToFile(file),
         }
     }
 }
@@ -375,10 +377,10 @@ unsafe fn redirect_standard_streams(
 
     let process_stdio = |fd, stdio: Stdio| {
         match stdio.inner {
-            StdioImp::Devnull => {
+            StdioImpl::Devnull => {
                 tryret!(dup2(devnull_fd, fd), (), ErrorKind::RedirectStreams);
             }
-            StdioImp::RedirectToFile(file) => {
+            StdioImpl::RedirectToFile(file) => {
                 let raw_fd = file.as_raw_fd();
                 tryret!(dup2(raw_fd, fd), (), ErrorKind::RedirectStreams);
             }
