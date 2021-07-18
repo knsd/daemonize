@@ -195,8 +195,13 @@ impl<T> fmt::Debug for Daemonize<T> {
     }
 }
 
+impl Default for Daemonize<()> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Daemonize<()> {
-    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Daemonize {
             directory: Path::new("/").to_owned(),
