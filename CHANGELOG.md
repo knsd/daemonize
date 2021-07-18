@@ -8,6 +8,7 @@ Version 0.5.0
 
   * Make tests pass on NetBSD, #37
   * Don't close file descriptors since dup2 will close it atomically before dup, #41
+  * replace dependency tempdir with tempfile, #42
 
 Version 0.4.1
 -------------
