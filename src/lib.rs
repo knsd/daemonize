@@ -44,6 +44,7 @@
 //! }
 //! ```
 
+mod error;
 mod ffi;
 
 extern crate libc;
@@ -60,11 +61,12 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use libc::{
-    c_int, close, dup2, fork, ftruncate, getpid, open, setgid, setsid, setuid, umask, write,
-    LOCK_EX, LOCK_NB,
+    close, dup2, fork, ftruncate, getpid, open, setgid, setsid, setuid, umask, write, LOCK_EX,
+    LOCK_NB,
 };
 pub use libc::{gid_t, mode_t, uid_t};
 
+use self::error::{Errno, Error, ErrorKind};
 use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
 
 macro_rules! tryret {
@@ -79,91 +81,6 @@ macro_rules! tryret {
         }
     };
 }
-
-pub type Errno = c_int;
-
-/// This error type for `Daemonize` `start` method.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub enum DaemonizeError {
-    /// Unable to fork
-    Fork,
-    /// Unable to create new session
-    DetachSession(Errno),
-    /// Unable to resolve group name to group id
-    GroupNotFound,
-    /// Group option contains NUL
-    GroupContainsNul,
-    /// Unable to set group
-    SetGroup(Errno),
-    /// Unable to resolve user name to user id
-    UserNotFound,
-    /// User option contains NUL
-    UserContainsNul,
-    /// Unable to set user
-    SetUser(Errno),
-    /// Unable to change directory
-    ChangeDirectory,
-    /// pid_file option contains NUL
-    PathContainsNul,
-    /// Unable to open pid file
-    OpenPidfile,
-    /// Unable to lock pid file
-    LockPidfile(Errno),
-    /// Unable to chown pid file
-    ChownPidfile(Errno),
-    /// Unable to redirect standard streams to /dev/null
-    RedirectStreams(Errno),
-    /// Unable to write self pid to pid file
-    WritePid,
-    /// Unable to chroot
-    Chroot(Errno),
-    // Hints that destructuring should not be exhaustive.
-    // This enum may grow additional variants, so this makes sure clients
-    // don't count on exhaustive matching. Otherwise, adding a new variant
-    // could break existing code.
-    #[doc(hidden)]
-    __Nonexhaustive,
-}
-
-impl DaemonizeError {
-    fn __description(&self) -> &str {
-        match *self {
-            DaemonizeError::Fork => "unable to fork",
-            DaemonizeError::DetachSession(_) => "unable to create new session",
-            DaemonizeError::GroupNotFound => "unable to resolve group name to group id",
-            DaemonizeError::GroupContainsNul => "group option contains NUL",
-            DaemonizeError::SetGroup(_) => "unable to set group",
-            DaemonizeError::UserNotFound => "unable to resolve user name to user id",
-            DaemonizeError::UserContainsNul => "user option contains NUL",
-            DaemonizeError::SetUser(_) => "unable to set user",
-            DaemonizeError::ChangeDirectory => "unable to change directory",
-            DaemonizeError::PathContainsNul => "pid_file option contains NUL",
-            DaemonizeError::OpenPidfile => "unable to open pid file",
-            DaemonizeError::LockPidfile(_) => "unable to lock pid file",
-            DaemonizeError::ChownPidfile(_) => "unable to chown pid file",
-            DaemonizeError::RedirectStreams(_) => {
-                "unable to redirect standard streams to /dev/null"
-            }
-            DaemonizeError::WritePid => "unable to write self pid to pid file",
-            DaemonizeError::Chroot(_) => "unable to chroot into directory",
-            DaemonizeError::__Nonexhaustive => unreachable!(),
-        }
-    }
-}
-
-impl std::fmt::Display for DaemonizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.__description().fmt(f)
-    }
-}
-
-impl std::error::Error for DaemonizeError {
-    fn description(&self) -> &str {
-        self.__description()
-    }
-}
-
-type Result<T> = std::result::Result<T, DaemonizeError>;
 
 /// Expects system user id or name. If name is provided it will be resolved to id later.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -369,8 +286,8 @@ impl<T> Daemonize<T> {
     }
 
     /// Start daemonization process.
-    pub fn start(self) -> std::result::Result<T, DaemonizeError> {
-        // Maps an Option<T> to Option<U> by applying a function Fn(T) -> Result<U, DaemonizeError>
+    pub fn start(self) -> std::result::Result<T, Error> {
+        // Maps an Option<T> to Option<U> by applying a function Fn(T) -> Result<U, ErrorKind>
         // to a contained value and try! it's result
         macro_rules! maptry {
             ($expr:expr, $f: expr) => {
@@ -386,7 +303,7 @@ impl<T> Daemonize<T> {
 
             perform_fork(Some(self.exit_action))?;
 
-            set_current_dir(&self.directory).map_err(|_| DaemonizeError::ChangeDirectory)?;
+            set_current_dir(&self.directory).map_err(|_| ErrorKind::ChangeDirectory(errno()))?;
             set_sid()?;
             umask(self.umask);
 
@@ -423,10 +340,10 @@ impl<T> Daemonize<T> {
     }
 }
 
-unsafe fn perform_fork(exit_action: Option<Box<dyn FnOnce()>>) -> Result<()> {
+unsafe fn perform_fork(exit_action: Option<Box<dyn FnOnce()>>) -> Result<(), ErrorKind> {
     let pid = fork();
     if pid < 0 {
-        Err(DaemonizeError::Fork)
+        Err(ErrorKind::Fork(errno()))
     } else if pid == 0 {
         Ok(())
     } else {
@@ -437,24 +354,28 @@ unsafe fn perform_fork(exit_action: Option<Box<dyn FnOnce()>>) -> Result<()> {
     }
 }
 
-unsafe fn set_sid() -> Result<()> {
-    tryret!(setsid(), Ok(()), DaemonizeError::DetachSession)
+unsafe fn set_sid() -> Result<(), ErrorKind> {
+    tryret!(setsid(), Ok(()), ErrorKind::DetachSession)
 }
 
-unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) -> Result<()> {
+unsafe fn redirect_standard_streams(
+    stdin: Stdio,
+    stdout: Stdio,
+    stderr: Stdio,
+) -> Result<(), ErrorKind> {
     let devnull_fd = open(b"/dev/null\0" as *const [u8; 10] as _, libc::O_RDWR);
     if -1 == devnull_fd {
-        return Err(DaemonizeError::RedirectStreams(errno()));
+        return Err(ErrorKind::OpenDevnull(errno()));
     }
 
     let process_stdio = |fd, stdio: Stdio| {
         match stdio.inner {
             StdioImp::Devnull => {
-                tryret!(dup2(devnull_fd, fd), (), DaemonizeError::RedirectStreams);
+                tryret!(dup2(devnull_fd, fd), (), ErrorKind::RedirectStreams);
             }
             StdioImp::RedirectToFile(file) => {
                 let raw_fd = file.as_raw_fd();
-                tryret!(dup2(raw_fd, fd), (), DaemonizeError::RedirectStreams);
+                tryret!(dup2(raw_fd, fd), (), ErrorKind::RedirectStreams);
             }
         };
         Ok(())
@@ -464,46 +385,46 @@ unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) 
     process_stdio(libc::STDOUT_FILENO, stdout)?;
     process_stdio(libc::STDERR_FILENO, stderr)?;
 
-    tryret!(close(devnull_fd), (), DaemonizeError::RedirectStreams);
+    tryret!(close(devnull_fd), (), ErrorKind::CloseDevnull);
 
     Ok(())
 }
 
-unsafe fn get_group(group: Group) -> Result<gid_t> {
+unsafe fn get_group(group: Group) -> Result<gid_t, ErrorKind> {
     match group {
         Group::Id(id) => Ok(id),
         Group::Name(name) => {
-            let s = CString::new(name).map_err(|_| DaemonizeError::GroupContainsNul)?;
+            let s = CString::new(name).map_err(|_| ErrorKind::GroupContainsNul)?;
             match get_gid_by_name(&s) {
                 Some(id) => get_group(Group::Id(id)),
-                None => Err(DaemonizeError::GroupNotFound),
+                None => Err(ErrorKind::GroupNotFound),
             }
         }
     }
 }
 
-unsafe fn set_group(group: gid_t) -> Result<()> {
-    tryret!(setgid(group), Ok(()), DaemonizeError::SetGroup)
+unsafe fn set_group(group: gid_t) -> Result<(), ErrorKind> {
+    tryret!(setgid(group), Ok(()), ErrorKind::SetGroup)
 }
 
-unsafe fn get_user(user: User) -> Result<uid_t> {
+unsafe fn get_user(user: User) -> Result<uid_t, ErrorKind> {
     match user {
         User::Id(id) => Ok(id),
         User::Name(name) => {
-            let s = CString::new(name).map_err(|_| DaemonizeError::UserContainsNul)?;
+            let s = CString::new(name).map_err(|_| ErrorKind::UserContainsNul)?;
             match get_uid_by_name(&s) {
                 Some(id) => get_user(User::Id(id)),
-                None => Err(DaemonizeError::UserNotFound),
+                None => Err(ErrorKind::UserNotFound),
             }
         }
     }
 }
 
-unsafe fn set_user(user: uid_t) -> Result<()> {
-    tryret!(setuid(user), Ok(()), DaemonizeError::SetUser)
+unsafe fn set_user(user: uid_t) -> Result<(), ErrorKind> {
+    tryret!(setuid(user), Ok(()), ErrorKind::SetUser)
 }
 
-unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
+unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int, ErrorKind> {
     let path_c = pathbuf_into_cstring(path)?;
 
     #[cfg(target_os = "redox")]
@@ -515,63 +436,59 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int> {
     let fd = open(path_c.as_ptr(), open_flags, 0o666);
 
     if fd == -1 {
-        return Err(DaemonizeError::OpenPidfile);
+        return Err(ErrorKind::OpenPidfile(errno()));
     }
 
     if cfg!(not(target_os = "redox")) {
         let flags = libc::fcntl(fd, libc::F_GETFD);
         if flags == -1 {
-            return Err(DaemonizeError::OpenPidfile);
+            return Err(ErrorKind::GetPidfileFlags(errno()));
         }
 
         if libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) == -1 {
-            return Err(DaemonizeError::OpenPidfile);
+            return Err(ErrorKind::SetPidfileFlags(errno()));
         };
     };
 
-    tryret!(
-        flock(fd, LOCK_EX | LOCK_NB),
-        Ok(fd),
-        DaemonizeError::LockPidfile
-    )
+    tryret!(flock(fd, LOCK_EX | LOCK_NB), Ok(fd), ErrorKind::LockPidfile)
 }
 
-unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<()> {
+unsafe fn chown_pid_file(path: PathBuf, uid: uid_t, gid: gid_t) -> Result<(), ErrorKind> {
     let path_c = pathbuf_into_cstring(path)?;
     tryret!(
         libc::chown(path_c.as_ptr(), uid, gid),
         Ok(()),
-        DaemonizeError::ChownPidfile
+        ErrorKind::ChownPidfile
     )
 }
 
-unsafe fn write_pid_file(fd: libc::c_int) -> Result<()> {
+unsafe fn write_pid_file(fd: libc::c_int) -> Result<(), ErrorKind> {
     let pid = getpid();
     let pid_buf = format!("{}", pid).into_bytes();
     let pid_length = pid_buf.len();
     let pid_c = CString::new(pid_buf).unwrap();
     if -1 == ftruncate(fd, 0) {
-        return Err(DaemonizeError::WritePid);
+        return Err(ErrorKind::WritePid);
     }
     if write(fd, pid_c.as_ptr() as *const libc::c_void, pid_length) < pid_length as isize {
-        Err(DaemonizeError::WritePid)
+        Err(ErrorKind::WritePid)
     } else {
         Ok(())
     }
 }
 
-unsafe fn change_root(path: PathBuf) -> Result<()> {
+unsafe fn change_root(path: PathBuf) -> Result<(), ErrorKind> {
     let path_c = pathbuf_into_cstring(path)?;
 
     if chroot(path_c.as_ptr()) == 0 {
         Ok(())
     } else {
-        Err(DaemonizeError::Chroot(errno()))
+        Err(ErrorKind::Chroot(errno()))
     }
 }
 
-fn pathbuf_into_cstring(path: PathBuf) -> Result<CString> {
-    CString::new(path.into_os_string().into_vec()).map_err(|_| DaemonizeError::PathContainsNul)
+fn pathbuf_into_cstring(path: PathBuf) -> Result<CString, ErrorKind> {
+    CString::new(path.into_os_string().into_vec()).map_err(|_| ErrorKind::PathContainsNul)
 }
 
 fn errno() -> Errno {
