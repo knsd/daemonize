@@ -378,7 +378,7 @@ impl<T> Daemonize<T> {
             ($expr:expr, $f: expr) => {
                 match $expr {
                     None => None,
-                    Some(x) => Some(try!($f(x))),
+                    Some(x) => Some($f(x)?),
                 };
             };
         }
