@@ -402,8 +402,8 @@ impl<T> Daemonize<T> {
             if self.chown_pid_file {
                 let args: Option<(PathBuf, uid_t, gid_t)> = match (self.pid_file, uid, gid) {
                     (Some(pid), Some(uid), Some(gid)) => Some((pid, uid, gid)),
-                    (Some(pid), None, Some(gid)) => Some((pid, uid_t::max_value() - 1, gid)),
-                    (Some(pid), Some(uid), None) => Some((pid, uid, gid_t::max_value() - 1)),
+                    (Some(pid), None, Some(gid)) => Some((pid, uid_t::MAX - 1, gid)),
+                    (Some(pid), Some(uid), None) => Some((pid, uid, gid_t::MAX - 1)),
                     // Or pid file is not provided, or both user and group
                     _ => None,
                 };
