@@ -45,8 +45,10 @@ pub enum ErrorKind {
     RedirectStreams(Errno),
     /// Unable to close /dev/null
     CloseDevnull(Errno),
+    /// Unable to truncate pid file
+    TruncatePidfile(Errno),
     /// Unable to write self pid to pid file
-    WritePid,
+    WritePid(Errno),
     /// Unable to chroot
     Chroot(Errno),
 }
@@ -72,7 +74,8 @@ impl ErrorKind {
             ErrorKind::OpenDevnull(_) => "unable to open /dev/null",
             ErrorKind::RedirectStreams(_) => "unable to redirect standard streams to /dev/null",
             ErrorKind::CloseDevnull(_) => "unable to close /dev/null",
-            ErrorKind::WritePid => "unable to write self pid to pid file",
+            ErrorKind::TruncatePidfile(_) => "unable to truncate pid file",
+            ErrorKind::WritePid(_) => "unable to write self pid to pid file",
             ErrorKind::Chroot(_) => "unable to chroot into directory",
         }
     }
@@ -97,7 +100,8 @@ impl ErrorKind {
             ErrorKind::OpenDevnull(errno) => Some(*errno),
             ErrorKind::RedirectStreams(errno) => Some(*errno),
             ErrorKind::CloseDevnull(errno) => Some(*errno),
-            ErrorKind::WritePid => None,
+            ErrorKind::TruncatePidfile(errno) => Some(*errno),
+            ErrorKind::WritePid(errno) => Some(*errno),
             ErrorKind::Chroot(errno) => Some(*errno),
         }
     }

@@ -508,10 +508,10 @@ unsafe fn write_pid_file(fd: libc::c_int) -> Result<(), ErrorKind> {
     let pid_length = pid_buf.len();
     let pid_c = CString::new(pid_buf).unwrap();
     if -1 == libc::ftruncate(fd, 0) {
-        return Err(ErrorKind::WritePid);
+        return Err(ErrorKind::TruncatePidfile(errno()));
     }
     if libc::write(fd, pid_c.as_ptr() as *const libc::c_void, pid_length) < pid_length as isize {
-        Err(ErrorKind::WritePid)
+        Err(ErrorKind::WritePid(errno()))
     } else {
         Ok(())
     }
