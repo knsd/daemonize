@@ -10,6 +10,7 @@ Version 0.5.0
   * Don't close file descriptors since dup2 will close it atomically before dup, #41
   * Replace dependency tempdir with tempfile, #42
   * Replace try! with ?
+  * Don't leak pid file into children, #39
 
 Version 0.4.1
 -------------
