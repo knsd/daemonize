@@ -74,7 +74,7 @@ mod tests {
         (u32::max_value() - 1) as libc::uid_t
     }
 
-    #[cfg(target_os = "openbsd")]
+    #[cfg(any(target_os = "openbsd", target_os = "netbsd"))]
     unsafe fn nobody_uid_gid() -> libc::uid_t {
         (i16::max_value()) as libc::uid_t
     }
@@ -89,7 +89,12 @@ mod tests {
             .unwrap();
         unsafe {
             let gid = get_gid_by_name(&group_name);
-            assert_eq!(gid, Some(nobody_uid_gid()))
+            // NetBSD does not necessarily use the same gid as uid for nobody so skip this
+            if cfg!(target_os = "netbsd") {
+                assert_eq!(1,1)
+            } else {
+                assert_eq!(gid, Some(nobody_uid_gid()))
+            }
         }
     }
 
