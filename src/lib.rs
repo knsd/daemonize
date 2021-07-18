@@ -450,7 +450,6 @@ unsafe fn redirect_standard_streams(stdin: Stdio, stdout: Stdio, stderr: Stdio) 
     }
 
     let process_stdio = |fd, stdio: Stdio| {
-        tryret!(close(fd), (), DaemonizeError::RedirectStreams);
         match stdio.inner {
             StdioImp::Devnull => {
                 tryret!(dup2(devnull_fd, fd), (), DaemonizeError::RedirectStreams);
