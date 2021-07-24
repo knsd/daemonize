@@ -8,7 +8,7 @@ fn main() {
     let args = std::env::args().collect::<Vec<String>>();
     let chdir = &args[1];
     let file = &args[2];
-    let umask = args[3].parse().unwrap();
+    let umask = args[3].parse::<u16>().unwrap();
 
     Daemonize::new()
         .working_directory(chdir)
