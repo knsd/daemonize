@@ -138,9 +138,11 @@ pub struct Mask {
     inner: libc::mode_t,
 }
 
-impl From<libc::mode_t> for Mask {
-    fn from(inner: libc::mode_t) -> Mask {
-        Mask { inner }
+impl From<u32> for Mask {
+    fn from(inner: u32) -> Mask {
+        Mask {
+            inner: inner as libc::mode_t,
+        }
     }
 }
 
