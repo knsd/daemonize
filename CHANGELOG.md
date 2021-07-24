@@ -16,6 +16,7 @@ Version 0.5.0
   * Hide Group implementations
   * Hide User implementations
   * Add Mask type
+  * Add an option to keep parent process alive after daemonize
 
 Version 0.4.1
 -------------

@@ -7,7 +7,7 @@
 // except according to those terms.
 
 //!
-//! daemonize is a library for writing system daemons. Inspired by the Python library [thesharp/daemonize](https://hub.com/thesharp/daemonize).
+//! daemonize is a library for writing system daemons. Inspired by the Python library [thesharp/daemonize](https://github.com/thesharp/daemonize).
 //!
 //! The respository is located at https://github.com/knsd/daemonize/.
 //!
@@ -34,7 +34,6 @@
 //!         .umask(0o777)    // Set umask, `0o027` by default.
 //!         .stdout(stdout)  // Redirect stdout to `/tmp/daemon.out`.
 //!         .stderr(stderr)  // Redirect stderr to `/tmp/daemon.err`.
-//!         .exit_action(|| println!("Executed before master process exits"))
 //!         .privileged_action(|| "Executed before drop privileges");
 //!
 //!     match daemonize.start() {
@@ -53,14 +52,13 @@ use std::env::set_current_dir;
 use std::ffi::CString;
 use std::fmt;
 use std::fs::File;
-use std::io;
 use std::mem::transmute;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use self::error::{Errno, ErrorKind};
+use self::error::{errno, ErrorKind};
 use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
 
 pub use self::error::Error;
@@ -174,6 +172,42 @@ impl From<File> for Stdio {
     }
 }
 
+/// Parent process execution outcome.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
+pub struct Parent {}
+
+/// Chiled process execution outcome.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
+pub struct Child<T> {
+    pub privileged_action_result: T,
+}
+
+/// Daemonization process outcome. Can be matched to check is it a parent process or a child
+/// process.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Outcome<T> {
+    Parent(Result<Parent, Error>),
+    Child(Result<Child<T>, Error>),
+}
+
+impl<T> Outcome<T> {
+    pub fn is_parent(&self) -> bool {
+        match self {
+            Outcome::Parent(_) => true,
+            Outcome::Child(_) => false,
+        }
+    }
+
+    pub fn is_child(&self) -> bool {
+        match self {
+            Outcome::Parent(_) => false,
+            Outcome::Child(_) => true,
+        }
+    }
+}
+
 /// Daemonization options.
 ///
 /// Fork the process in the background, disassociate from its process group and the control terminal.
@@ -198,7 +232,6 @@ pub struct Daemonize<T> {
     umask: Mask,
     root: Option<PathBuf>,
     privileged_action: Box<dyn FnOnce() -> T>,
-    exit_action: Box<dyn FnOnce()>,
     stdin: Stdio,
     stdout: Stdio,
     stderr: Stdio,
@@ -237,7 +270,6 @@ impl Daemonize<()> {
             group: None,
             umask: 0o027.into(),
             privileged_action: Box::new(|| ()),
-            exit_action: Box::new(|| ()),
             root: None,
             stdin: Stdio::devnull(),
             stdout: Stdio::devnull(),
@@ -289,19 +321,12 @@ impl<T> Daemonize<T> {
         self
     }
 
-    /// Execute `action` just before dropping privileges. Most common usecase is to open listening socket.
-    /// Result of `action` execution will be returned by `start` method.
+    /// Execute `action` just before dropping privileges. Most common use case is to open
+    /// listening socket. Result of `action` execution will be returned by `start` method.
     pub fn privileged_action<N, F: FnOnce() -> N + 'static>(self, action: F) -> Daemonize<N> {
         let mut new: Daemonize<N> = unsafe { transmute(self) };
         new.privileged_action = Box::new(action);
         new
-    }
-
-    /// Execute `action` just before exiting the parent process. Most common usecase is to synchronize with
-    /// forked processes.
-    pub fn exit_action<F: FnOnce() + 'static>(mut self, action: F) -> Daemonize<T> {
-        self.exit_action = Box::new(action);
-        self
     }
 
     /// Configuration for the child process's standard output stream.
@@ -315,9 +340,34 @@ impl<T> Daemonize<T> {
         self.stderr = stdio.into();
         self
     }
+    /// Start daemonization process, terminate parent after first fork, returns privileged action
+    /// result to the child.
+    pub fn start(self) -> Result<T, Error> {
+        match self.execute() {
+            Outcome::Parent(Ok(_)) => exit(0),
+            Outcome::Parent(Err(err)) => Err(err),
+            Outcome::Child(Ok(child)) => Ok(child.privileged_action_result),
+            Outcome::Child(Err(err)) => Err(err),
+        }
+    }
 
-    /// Start daemonization process.
-    pub fn start(self) -> std::result::Result<T, Error> {
+    /// Execute daemonization process, don't terminate parent after first fork.
+    pub fn execute(self) -> Outcome<T> {
+        unsafe {
+            match perform_fork() {
+                Ok(Some(_first_child_pid)) => Outcome::Parent(Ok(Parent {})),
+                Err(err) => Outcome::Parent(Err(err.into())),
+                Ok(None) => match self.execute_child() {
+                    Ok(privileged_action_result) => Outcome::Child(Ok(Child {
+                        privileged_action_result,
+                    })),
+                    Err(err) => Outcome::Child(Err(err.into())),
+                },
+            }
+        }
+    }
+
+    fn execute_child(self) -> Result<T, ErrorKind> {
         // Maps an Option<T> to Option<U> by applying a function Fn(T) -> Result<U, ErrorKind>
         // to a contained value and try! it's result
         macro_rules! maptry {
@@ -330,15 +380,15 @@ impl<T> Daemonize<T> {
         }
 
         unsafe {
-            let pid_file_fd = maptry!(self.pid_file.clone(), create_pid_file);
-
-            perform_fork(Some(self.exit_action))?;
-
             set_current_dir(&self.directory).map_err(|_| ErrorKind::ChangeDirectory(errno()))?;
             set_sid()?;
             libc::umask(self.umask.inner);
 
-            perform_fork(None)?;
+            if perform_fork()?.is_some() {
+                exit(0)
+            };
+
+            let pid_file_fd = maptry!(self.pid_file.clone(), create_pid_file);
 
             redirect_standard_streams(self.stdin, self.stdout, self.stderr)?;
 
@@ -358,6 +408,10 @@ impl<T> Daemonize<T> {
                 maptry!(args, |(pid, uid, gid)| chown_pid_file(pid, uid, gid));
             }
 
+            if let Some(pid_file_fd) = pid_file_fd {
+                set_cloexec_pid_file(pid_file_fd)?;
+            }
+
             let privileged_action_result = (self.privileged_action)();
 
             maptry!(self.root, change_root);
@@ -372,17 +426,14 @@ impl<T> Daemonize<T> {
     }
 }
 
-unsafe fn perform_fork(exit_action: Option<Box<dyn FnOnce()>>) -> Result<(), ErrorKind> {
+unsafe fn perform_fork() -> Result<Option<libc::pid_t>, ErrorKind> {
     let pid = libc::fork();
     if pid < 0 {
         Err(ErrorKind::Fork(errno()))
     } else if pid == 0 {
-        Ok(())
+        Ok(None)
     } else {
-        if let Some(exit_action) = exit_action {
-            exit_action()
-        }
-        exit(0)
+        Ok(Some(pid))
     }
 }
 
@@ -459,28 +510,11 @@ unsafe fn set_user(user: libc::uid_t) -> Result<(), ErrorKind> {
 unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int, ErrorKind> {
     let path_c = pathbuf_into_cstring(path)?;
 
-    #[cfg(target_os = "redox")]
-    let open_flags = libc::O_CLOEXEC | libc::O_WRONLY | libc::O_CREAT;
-
-    #[cfg(not(target_os = "redox"))]
-    let open_flags = libc::O_WRONLY | libc::O_CREAT;
-
-    let fd = libc::open(path_c.as_ptr(), open_flags, 0o666);
+    let fd = libc::open(path_c.as_ptr(), libc::O_WRONLY | libc::O_CREAT, 0o666);
 
     if fd == -1 {
         return Err(ErrorKind::OpenPidfile(errno()));
     }
-
-    if cfg!(not(target_os = "redox")) {
-        let flags = libc::fcntl(fd, libc::F_GETFD);
-        if flags == -1 {
-            return Err(ErrorKind::GetPidfileFlags(errno()));
-        }
-
-        if libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) == -1 {
-            return Err(ErrorKind::SetPidfileFlags(errno()));
-        };
-    };
 
     tryret!(
         flock(fd, libc::LOCK_EX | libc::LOCK_NB),
@@ -517,6 +551,28 @@ unsafe fn write_pid_file(fd: libc::c_int) -> Result<(), ErrorKind> {
     }
 }
 
+unsafe fn set_cloexec_pid_file(fd: libc::c_int) -> Result<(), ErrorKind> {
+    if cfg!(not(target_os = "redox")) {
+        let flags = libc::fcntl(fd, libc::F_GETFD);
+        if flags == -1 {
+            return Err(ErrorKind::GetPidfileFlags(errno()));
+        }
+
+        tryret!(
+            libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC),
+            (),
+            ErrorKind::SetPidfileFlags
+        );
+    } else {
+        tryret!(
+            libc::ioctl(fd, libc::FIOCLEX),
+            (),
+            ErrorKind::SetPidfileFlags
+        );
+    }
+    Ok(())
+}
+
 unsafe fn change_root(path: PathBuf) -> Result<(), ErrorKind> {
     let path_c = pathbuf_into_cstring(path)?;
 
@@ -529,8 +585,4 @@ unsafe fn change_root(path: PathBuf) -> Result<(), ErrorKind> {
 
 fn pathbuf_into_cstring(path: PathBuf) -> Result<CString, ErrorKind> {
     CString::new(path.into_os_string().into_vec()).map_err(|_| ErrorKind::PathContainsNul)
-}
-
-fn errno() -> Errno {
-    io::Error::last_os_error().raw_os_error().expect("errno")
 }

@@ -9,47 +9,26 @@ pub struct Error {
 /// This error type for `Daemonize` `start` method.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum ErrorKind {
-    /// Unable to fork
     Fork(Errno),
-    /// Unable to create new session
     DetachSession(Errno),
-    /// Unable to resolve group name to group id
     GroupNotFound,
-    /// Group option contains NUL
     GroupContainsNul,
-    /// Unable to set group
     SetGroup(Errno),
-    /// Unable to resolve user name to user id
     UserNotFound,
-    /// User option contains NUL
     UserContainsNul,
-    /// Unable to set user
     SetUser(Errno),
-    /// Unable to change directory
     ChangeDirectory(Errno),
-    /// pid_file option contains NUL
     PathContainsNul,
-    /// Unable to open pid file
     OpenPidfile(Errno),
-    /// Unable to get pid file flags
     GetPidfileFlags(Errno),
-    /// Unable to set pid file flags
     SetPidfileFlags(Errno),
-    /// Unable to lock pid file
     LockPidfile(Errno),
-    /// Unable to chown pid file
     ChownPidfile(Errno),
-    /// Unable to open /dev/null
     OpenDevnull(Errno),
-    /// Unable to redirect standard streams to /dev/null
     RedirectStreams(Errno),
-    /// Unable to close /dev/null
     CloseDevnull(Errno),
-    /// Unable to truncate pid file
     TruncatePidfile(Errno),
-    /// Unable to write self pid to pid file
     WritePid(Errno),
-    /// Unable to chroot
     Chroot(Errno),
 }
 
@@ -131,4 +110,10 @@ impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
         Self { kind }
     }
+}
+
+pub fn errno() -> Errno {
+    std::io::Error::last_os_error()
+        .raw_os_error()
+        .expect("errno")
 }
