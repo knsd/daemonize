@@ -94,10 +94,10 @@ impl From<&str> for User {
     }
 }
 
-impl From<libc::uid_t> for User {
-    fn from(t: libc::uid_t) -> User {
+impl From<u32> for User {
+    fn from(t: u32) -> User {
         User {
-            inner: UserImpl::Id(t),
+            inner: UserImpl::Id(t as libc::uid_t),
         }
     }
 }
@@ -105,7 +105,7 @@ impl From<libc::uid_t> for User {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 enum GroupImpl {
     Name(String),
-    Id(libc::uid_t),
+    Id(libc::gid_t),
 }
 
 /// Expects system group id or name. If name is provided it will be resolved to id later.
@@ -122,10 +122,10 @@ impl From<&str> for Group {
     }
 }
 
-impl From<libc::gid_t> for Group {
-    fn from(t: libc::gid_t) -> Group {
+impl From<u32> for Group {
+    fn from(t: u32) -> Group {
         Group {
-            inner: GroupImpl::Id(t),
+            inner: GroupImpl::Id(t as libc::gid_t),
         }
     }
 }
