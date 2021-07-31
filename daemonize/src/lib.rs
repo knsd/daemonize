@@ -44,7 +44,6 @@
 //! ```
 
 mod error;
-mod ffi;
 
 extern crate libc;
 
@@ -59,7 +58,6 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use self::error::{errno, ErrorKind};
-use self::ffi::{chroot, flock, get_gid_by_name, get_uid_by_name};
 
 pub use self::error::Error;
 
@@ -519,7 +517,7 @@ unsafe fn create_pid_file(path: PathBuf) -> Result<libc::c_int, ErrorKind> {
     }
 
     tryret!(
-        flock(fd, libc::LOCK_EX | libc::LOCK_NB),
+        libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB),
         Ok(fd),
         ErrorKind::LockPidfile
     )
@@ -578,10 +576,30 @@ unsafe fn set_cloexec_pid_file(fd: libc::c_int) -> Result<(), ErrorKind> {
 unsafe fn change_root(path: PathBuf) -> Result<(), ErrorKind> {
     let path_c = pathbuf_into_cstring(path)?;
 
-    if chroot(path_c.as_ptr()) == 0 {
+    if libc::chroot(path_c.as_ptr()) == 0 {
         Ok(())
     } else {
         Err(ErrorKind::Chroot(errno()))
+    }
+}
+
+unsafe fn get_gid_by_name(name: &CString) -> Option<libc::gid_t> {
+    let ptr = libc::getgrnam(name.as_ptr() as *const libc::c_char);
+    if ptr.is_null() {
+        None
+    } else {
+        let s = &*ptr;
+        Some(s.gr_gid)
+    }
+}
+
+unsafe fn get_uid_by_name(name: &CString) -> Option<libc::uid_t> {
+    let ptr = libc::getpwnam(name.as_ptr() as *const libc::c_char);
+    if ptr.is_null() {
+        None
+    } else {
+        let s = &*ptr;
+        Some(s.pw_uid)
     }
 }
 
