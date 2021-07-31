@@ -22,9 +22,9 @@ const ARG_STDERR: &str = "--stderr";
 const ARG_ADDITIONAL_FILE: &str = "--additional-file";
 const ARG_SLEEP_MS: &str = "--sleep-ms";
 
-const STDOUT_DATA: &str = "stdout data";
-const STDERR_DATA: &str = "stdout data";
-const ADDITIONAL_FILE_DATA: &str = "additional file data";
+pub const STDOUT_DATA: &str = "stdout data";
+pub const STDERR_DATA: &str = "stdout data";
+pub const ADDITIONAL_FILE_DATA: &str = "additional file data";
 
 const TESTER_PATH: &str = "../target/debug/examples/tester";
 
@@ -164,6 +164,8 @@ impl Tester {
 pub struct EnvData {
     pub cwd: arraystring::ArrayString<arraystring::typenum::U255>,
     pub pid: u32,
+    pub euid: u32,
+    pub egid: u32,
 }
 
 impl EnvData {
@@ -177,6 +179,8 @@ impl EnvData {
             )
             .expect("too long path"),
             pid: std::process::id(),
+            euid: unsafe { libc::geteuid() as u32 },
+            egid: unsafe { libc::getegid() as u32 },
         }
     }
 }

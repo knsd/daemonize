@@ -1,7 +1,7 @@
 extern crate daemonize_tests;
 extern crate tempfile;
 
-use daemonize_tests::Tester;
+use daemonize_tests::{Tester, STDERR_DATA, STDOUT_DATA};
 use tempfile::TempDir;
 
 #[test]
@@ -43,4 +43,35 @@ fn pid() {
 
     let result = Tester::new().pid_file(&path).run();
     assert!(result.is_err());
+}
+
+#[test]
+fn redirect_stream() {
+    let tmpdir = TempDir::new().unwrap();
+    let stdout = tmpdir.path().join("stdout");
+    let stderr = tmpdir.path().join("stderr");
+
+    Tester::new().stdout(&stdout).stderr(&stderr).run().unwrap();
+
+    assert_eq!(&std::fs::read_to_string(&stdout).unwrap(), STDOUT_DATA);
+    assert_eq!(&std::fs::read_to_string(&stderr).unwrap(), STDERR_DATA);
+
+    std::fs::remove_file(&stdout).unwrap();
+    std::fs::remove_file(&stderr).unwrap();
+
+    Tester::new().stdout(&stdout).run().unwrap();
+    assert_eq!(&std::fs::read_to_string(&stdout).unwrap(), STDOUT_DATA);
+    assert_eq!(
+        std::fs::metadata(&stderr).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound
+    );
+
+    std::fs::remove_file(&stdout).unwrap();
+
+    Tester::new().stderr(&stderr).run().unwrap();
+    assert_eq!(
+        std::fs::metadata(&stdout).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound
+    );
+    assert_eq!(&std::fs::read_to_string(&stderr).unwrap(), STDERR_DATA);
 }
