@@ -29,6 +29,7 @@ pub enum ErrorKind {
     CloseDevnull(Errno),
     TruncatePidfile(Errno),
     WritePid(Errno),
+    WritePidUnspecifiedError,
     Chroot(Errno),
 }
 
@@ -55,6 +56,9 @@ impl ErrorKind {
             ErrorKind::CloseDevnull(_) => "unable to close /dev/null",
             ErrorKind::TruncatePidfile(_) => "unable to truncate pid file",
             ErrorKind::WritePid(_) => "unable to write self pid to pid file",
+            ErrorKind::WritePidUnspecifiedError => {
+                "unable to write self pid to pid file due to unknown reason"
+            }
             ErrorKind::Chroot(_) => "unable to chroot into directory",
         }
     }
@@ -81,6 +85,7 @@ impl ErrorKind {
             ErrorKind::CloseDevnull(errno) => Some(*errno),
             ErrorKind::TruncatePidfile(errno) => Some(*errno),
             ErrorKind::WritePid(errno) => Some(*errno),
+            ErrorKind::WritePidUnspecifiedError => None,
             ErrorKind::Chroot(errno) => Some(*errno),
         }
     }
@@ -109,6 +114,48 @@ impl std::error::Error for Error {}
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
         Self { kind }
+    }
+}
+
+pub trait Num {
+    fn is_err(&self) -> bool;
+}
+
+impl Num for i8 {
+    fn is_err(&self) -> bool {
+        *self == -1
+    }
+}
+
+impl Num for i16 {
+    fn is_err(&self) -> bool {
+        *self == -1
+    }
+}
+
+impl Num for i32 {
+    fn is_err(&self) -> bool {
+        *self == -1
+    }
+}
+
+impl Num for i64 {
+    fn is_err(&self) -> bool {
+        *self == -1
+    }
+}
+
+impl Num for isize {
+    fn is_err(&self) -> bool {
+        *self == -1
+    }
+}
+
+pub fn check_err<N: Num, F: FnOnce(Errno) -> ErrorKind>(ret: N, f: F) -> Result<N, ErrorKind> {
+    if ret.is_err() {
+        Err(f(errno()))
+    } else {
+        Ok(ret)
     }
 }
 
