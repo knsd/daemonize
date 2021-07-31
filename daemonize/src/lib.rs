@@ -148,6 +148,7 @@ impl From<u32> for Mask {
 enum StdioImpl {
     Devnull,
     RedirectToFile(File),
+    Keep,
 }
 
 /// Describes what to do with a standard I/O stream for a child process.
@@ -157,9 +158,15 @@ pub struct Stdio {
 }
 
 impl Stdio {
-    fn devnull() -> Self {
+    pub fn devnull() -> Self {
         Self {
             inner: StdioImpl::Devnull,
+        }
+    }
+
+    pub fn keep() -> Self {
+        Self {
+            inner: StdioImpl::Keep,
         }
     }
 }
@@ -460,6 +467,7 @@ unsafe fn redirect_standard_streams(
                 let raw_fd = file.as_raw_fd();
                 tryret!(libc::dup2(raw_fd, fd), (), ErrorKind::RedirectStreams);
             }
+            StdioImpl::Keep => (),
         };
         Ok(())
     };
