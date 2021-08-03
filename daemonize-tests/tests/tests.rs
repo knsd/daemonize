@@ -38,7 +38,9 @@ fn pid() {
         .pid_file(&path)
         .sleep(std::time::Duration::from_secs(5))
         .run();
-    let pid = std::fs::read_to_string(&path).unwrap().parse().unwrap();
+    let pid_content = std::fs::read_to_string(&path).unwrap();
+    assert!(pid_content.ends_with('\n'));
+    let pid = pid_content[..pid_content.len() - 1].parse().unwrap();
     assert_eq!(result.unwrap().pid, pid);
 
     let result = Tester::new().pid_file(&path).run();

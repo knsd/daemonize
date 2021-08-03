@@ -537,7 +537,7 @@ unsafe fn chown_pid_file(
 
 unsafe fn write_pid_file(fd: libc::c_int) -> Result<(), ErrorKind> {
     let pid = libc::getpid();
-    let pid_buf = format!("{}", pid).into_bytes();
+    let pid_buf = format!("{}\n", pid).into_bytes();
     let pid_length = pid_buf.len();
     let pid_c = CString::new(pid_buf).unwrap();
     check_err(libc::ftruncate(fd, 0), ErrorKind::TruncatePidfile)?;
