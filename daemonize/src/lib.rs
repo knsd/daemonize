@@ -169,7 +169,9 @@ impl From<File> for Stdio {
 /// Parent process execution outcome.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
-pub struct Parent {}
+pub struct Parent {
+    pub child_pid: libc::pid_t,
+}
 
 /// Chiled process execution outcome.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -338,7 +340,10 @@ impl<T> Daemonize<T> {
     /// result to the child.
     pub fn start(self) -> Result<T, Error> {
         match self.execute() {
-            Outcome::Parent(Ok(_)) => exit(0),
+            Outcome::Parent(Ok(parent)) => {
+                let child_status = unsafe { wait(parent.child_pid)? };
+                exit(child_status);
+            }
             Outcome::Parent(Err(err)) => Err(err),
             Outcome::Child(Ok(child)) => Ok(child.privileged_action_result),
             Outcome::Child(Err(err)) => Err(err),
@@ -349,7 +354,7 @@ impl<T> Daemonize<T> {
     pub fn execute(self) -> Outcome<T> {
         unsafe {
             match perform_fork() {
-                Ok(Some(_first_child_pid)) => Outcome::Parent(Ok(Parent {})),
+                Ok(Some(child_pid)) => Outcome::Parent(Ok(Parent { child_pid })),
                 Err(err) => Outcome::Parent(Err(err.into())),
                 Ok(None) => match self.execute_child() {
                     Ok(privileged_action_result) => Outcome::Child(Ok(Child {
@@ -431,6 +436,12 @@ unsafe fn perform_fork() -> Result<Option<libc::pid_t>, ErrorKind> {
     } else {
         Ok(Some(pid))
     }
+}
+
+unsafe fn wait(pid: libc::pid_t) -> Result<i32, ErrorKind> {
+    let mut child_ret = 0;
+    check_err(libc::waitpid(pid, &mut child_ret, 0), ErrorKind::Wait)?;
+    Ok(child_ret as i32)
 }
 
 unsafe fn set_sid() -> Result<(), ErrorKind> {
