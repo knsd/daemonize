@@ -9,7 +9,7 @@
 //!
 //! daemonize is a library for writing system daemons. Inspired by the Python library [thesharp/daemonize](https://github.com/thesharp/daemonize).
 //!
-//! The respository is located at https://github.com/knsd/daemonize/.
+//! The respository is located at <https://github.com/knsd/daemonize/>.
 //!
 //! Usage example:
 //!
