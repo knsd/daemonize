@@ -21,9 +21,10 @@ const ARG_STDOUT: &str = "--stdout";
 const ARG_STDERR: &str = "--stderr";
 const ARG_ADDITIONAL_FILE: &str = "--additional-file";
 const ARG_SLEEP_MS: &str = "--sleep-ms";
+const ARG_HUMAN_READABLE: &str = "--human-readable";
 
 pub const STDOUT_DATA: &str = "stdout data";
-pub const STDERR_DATA: &str = "stdout data";
+pub const STDERR_DATA: &str = "stderr data";
 pub const ADDITIONAL_FILE_DATA: &str = "additional file data";
 
 const TESTER_PATH: &str = "../target/debug/examples/tester";
@@ -161,6 +162,7 @@ impl Tester {
     }
 }
 
+#[derive(Debug)]
 pub struct EnvData {
     pub cwd: arraystring::ArrayString<arraystring::typenum::U255>,
     pub pid: u32,
@@ -203,6 +205,7 @@ pub fn execute_tester() {
 
     let mut additional_files = Vec::new();
     let mut sleep_duration = None;
+    let mut human_readable = false;
 
     while let Some(key) = args.next() {
         daemonize = match key.as_str() {
@@ -236,6 +239,10 @@ pub fn execute_tester() {
                 sleep_duration = Some(std::time::Duration::from_millis(ms));
                 daemonize
             }
+            ARG_HUMAN_READABLE => {
+                human_readable = true;
+                daemonize
+            }
             key => {
                 panic!("unknown key: {}", key)
             }
@@ -251,7 +258,7 @@ pub fn execute_tester() {
             read_pipe
                 .read_to_end(&mut data)
                 .expect("unable to read pipe");
-            if data.len() != DATA_LEN {
+            if !human_readable && data.len() != DATA_LEN {
                 panic!("invalid data len");
             }
             std::io::stdout()
@@ -271,8 +278,14 @@ pub fn execute_tester() {
                 }
             }
 
-            let data: [u8; DATA_LEN] = unsafe { std::mem::transmute(result) };
-            write_pipe.write_all(&data).ok();
+            if human_readable {
+                write_pipe
+                    .write_all(format!("{:?}\n", result).as_bytes())
+                    .ok();
+            } else {
+                let data: [u8; DATA_LEN] = unsafe { std::mem::transmute(result) };
+                write_pipe.write_all(&data).ok();
+            }
 
             drop(write_pipe);
 

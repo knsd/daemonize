@@ -10,6 +10,7 @@ pub struct Error {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum ErrorKind {
     Fork(Errno),
+    Wait(Errno),
     DetachSession(Errno),
     GroupNotFound,
     GroupContainsNul,
@@ -37,6 +38,7 @@ impl ErrorKind {
     fn description(&self) -> &str {
         match self {
             ErrorKind::Fork(_) => "unable to fork",
+            ErrorKind::Wait(_) => "wait failed",
             ErrorKind::DetachSession(_) => "unable to create new session",
             ErrorKind::GroupNotFound => "unable to resolve group name to group id",
             ErrorKind::GroupContainsNul => "group option contains NUL",
@@ -66,6 +68,7 @@ impl ErrorKind {
     fn errno(&self) -> Option<Errno> {
         match self {
             ErrorKind::Fork(errno) => Some(*errno),
+            ErrorKind::Wait(errno) => Some(*errno),
             ErrorKind::DetachSession(errno) => Some(*errno),
             ErrorKind::GroupNotFound => None,
             ErrorKind::GroupContainsNul => None,

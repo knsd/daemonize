@@ -169,7 +169,9 @@ impl From<File> for Stdio {
 /// Parent process execution outcome.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
-pub struct Parent {}
+pub struct Parent {
+    pub first_child_exit_code: i32,
+}
 
 /// Chiled process execution outcome.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -338,7 +340,7 @@ impl<T> Daemonize<T> {
     /// result to the child.
     pub fn start(self) -> Result<T, Error> {
         match self.execute() {
-            Outcome::Parent(Ok(_)) => exit(0),
+            Outcome::Parent(Ok(Parent { first_child_exit_code })) => exit(first_child_exit_code),
             Outcome::Parent(Err(err)) => Err(err),
             Outcome::Child(Ok(child)) => Ok(child.privileged_action_result),
             Outcome::Child(Err(err)) => Err(err),
@@ -349,7 +351,12 @@ impl<T> Daemonize<T> {
     pub fn execute(self) -> Outcome<T> {
         unsafe {
             match perform_fork() {
-                Ok(Some(_first_child_pid)) => Outcome::Parent(Ok(Parent {})),
+                Ok(Some(first_child_pid)) => {
+                    Outcome::Parent(match waitpid(first_child_pid) {
+                        Err(err) => Err(err.into()),
+                        Ok(first_child_exit_code) => Ok(Parent { first_child_exit_code: first_child_exit_code as i32 }),
+                    })
+                },
                 Err(err) => Outcome::Parent(Err(err.into())),
                 Ok(None) => match self.execute_child() {
                     Ok(privileged_action_result) => Outcome::Child(Ok(Child {
@@ -432,6 +439,12 @@ unsafe fn perform_fork() -> Result<Option<libc::pid_t>, ErrorKind> {
         Ok(Some(pid))
     }
 }
+
+unsafe fn waitpid(pid: libc::pid_t) -> Result<libc::c_int, ErrorKind> {
+     let mut child_ret = 0;
+     check_err(libc::waitpid(pid, &mut child_ret, 0), ErrorKind::Wait)?;
+     Ok(child_ret)
+ }
 
 unsafe fn set_sid() -> Result<(), ErrorKind> {
     check_err(libc::setsid(), ErrorKind::DetachSession)?;
