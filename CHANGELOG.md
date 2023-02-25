@@ -6,6 +6,8 @@ Here you can see the full list of changes between each daemonize release.
 Version 0.5.0
 -------------
 
+Released on February 25, 2023
+
   * Make tests pass on NetBSD, #37
   * Don't close file descriptors since dup2 will close it atomically before dup, #41
   * Replace dependency tempdir with tempfile, #42
@@ -17,6 +19,8 @@ Version 0.5.0
   * Hide User implementations
   * Add Mask type
   * Add an option to keep parent process alive after daemonize
+  * Wait for the first child to fork
+  * Ensure pid file ends with line separator
 
 Version 0.4.1
 -------------
