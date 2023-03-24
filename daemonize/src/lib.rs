@@ -173,7 +173,7 @@ pub struct Parent {
     pub first_child_exit_code: i32,
 }
 
-/// Chiled process execution outcome.
+/// Child process execution outcome.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub struct Child<T> {
