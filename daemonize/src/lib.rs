@@ -374,15 +374,15 @@ impl<T> Daemonize<T> {
             set_sid()?;
             libc::umask(self.umask.inner);
 
-            if perform_fork()?.is_some() {
-                exit(0)
-            };
-
             let pid_file_fd = self
                 .pid_file
                 .clone()
                 .map(|pid_file| create_pid_file(pid_file))
                 .transpose()?;
+
+            if perform_fork()?.is_some() {
+                exit(0)
+            };
 
             redirect_standard_streams(self.stdin, self.stdout, self.stderr)?;
 
