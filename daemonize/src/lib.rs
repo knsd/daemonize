@@ -57,9 +57,9 @@ use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use self::error::{check_err, errno, ErrorKind};
+use self::error::{check_err, errno};
 
-pub use self::error::Error;
+pub use self::error::{Error, ErrorKind};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 enum UserImpl {
