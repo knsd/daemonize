@@ -3,7 +3,7 @@ pub type Errno = libc::c_int;
 /// This error type for `Daemonize` `start` method.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Error {
-    kind: ErrorKind,
+    pub kind: ErrorKind,
 }
 
 /// This error type for `Daemonize` `start` method.
