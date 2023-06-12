@@ -54,6 +54,7 @@ use std::fs::File;
 use std::mem::transmute;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::io::AsRawFd;
+use std::os::unix::io::RawFd;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
@@ -135,6 +136,7 @@ impl From<u32> for Mask {
 enum StdioImpl {
     Devnull,
     RedirectToFile(File),
+    RedirectToRawFd(RawFd),
     Keep,
 }
 
@@ -162,6 +164,14 @@ impl From<File> for Stdio {
     fn from(file: File) -> Self {
         Self {
             inner: StdioImpl::RedirectToFile(file),
+        }
+    }
+}
+
+impl From<RawFd> for Stdio {
+    fn from(fd: RawFd) -> Self {
+        Self {
+            inner: StdioImpl::RedirectToRawFd(fd),
         }
     }
 }
@@ -468,6 +478,9 @@ unsafe fn redirect_standard_streams(
             }
             StdioImpl::RedirectToFile(file) => {
                 let raw_fd = file.as_raw_fd();
+                check_err(libc::dup2(raw_fd, fd), ErrorKind::RedirectStreams)?;
+            }
+            StdioImpl::RedirectToRawFd(raw_fd) => {
                 check_err(libc::dup2(raw_fd, fd), ErrorKind::RedirectStreams)?;
             }
             StdioImpl::Keep => (),
