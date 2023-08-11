@@ -354,7 +354,7 @@ impl<T> Daemonize<T> {
                 Ok(Some(first_child_pid)) => {
                     Outcome::Parent(match waitpid(first_child_pid) {
                         Err(err) => Err(err.into()),
-                        Ok(first_child_exit_code) => Ok(Parent { first_child_exit_code: first_child_exit_code as i32 }),
+                        Ok(first_child_exit_code) => Ok(Parent { first_child_exit_code }),
                     })
                 },
                 Err(err) => Outcome::Parent(Err(err.into())),
@@ -498,7 +498,7 @@ unsafe fn get_group(group: Group) -> Result<libc::gid_t, ErrorKind> {
 }
 
 unsafe fn set_group(group: libc::gid_t) -> Result<(), ErrorKind> {
-    check_err(libc::setgid(group), ErrorKind::SetGroup)?;
+    check_err(libc::setregid(group, group), ErrorKind::SetGroup)?;
     Ok(())
 }
 
@@ -516,7 +516,7 @@ unsafe fn get_user(user: User) -> Result<libc::uid_t, ErrorKind> {
 }
 
 unsafe fn set_user(user: libc::uid_t) -> Result<(), ErrorKind> {
-    check_err(libc::setuid(user), ErrorKind::SetUser)?;
+    check_err(libc::setreuid(user, user), ErrorKind::SetUser)?;
     Ok(())
 }
 
