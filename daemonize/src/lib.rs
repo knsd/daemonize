@@ -354,7 +354,9 @@ impl<T> Daemonize<T> {
                 Ok(Some(first_child_pid)) => {
                     Outcome::Parent(match waitpid(first_child_pid) {
                         Err(err) => Err(err.into()),
-                        Ok(first_child_exit_code) => Ok(Parent { first_child_exit_code }),
+                        // return value of `waitpid` may not be i32 on all platforms.
+                        #[allow(clippy::unnecessary_cast)]
+                        Ok(first_child_exit_code) => Ok(Parent { first_child_exit_code: first_child_exit_code as i32 }),
                     })
                 },
                 Err(err) => Outcome::Parent(Err(err.into())),
