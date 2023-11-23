@@ -223,6 +223,7 @@ pub struct Daemonize<T> {
     directory: PathBuf,
     pid_file: Option<PathBuf>,
     chown_pid_file: bool,
+    set_group_and_user_id: bool,
     user: Option<User>,
     group: Option<Group>,
     umask: Mask,
@@ -239,6 +240,7 @@ impl<T> fmt::Debug for Daemonize<T> {
             .field("directory", &self.directory)
             .field("pid_file", &self.pid_file)
             .field("chown_pid_file", &self.chown_pid_file)
+            .field("set_group_and_user_id", &self.set_group_and_user_id)
             .field("user", &self.user)
             .field("group", &self.group)
             .field("umask", &self.umask)
@@ -262,6 +264,7 @@ impl Daemonize<()> {
             directory: Path::new("/").to_owned(),
             pid_file: None,
             chown_pid_file: false,
+            set_group_and_user_id: true,
             user: None,
             group: None,
             umask: 0o027.into(),
@@ -284,6 +287,12 @@ impl<T> Daemonize<T> {
     /// If `chown` is true, daemonize will change the pid-file ownership, if user or group are provided
     pub fn chown_pid_file(mut self, chown: bool) -> Self {
         self.chown_pid_file = chown;
+        self
+    }
+
+    /// If `set` is true, daemonize will set the effective group and user ID of the calling process, if user or group are provided
+    pub fn set_group_and_user_id(mut self, set: bool) -> Self {
+        self.set_group_and_user_id = set;
         self
     }
 
@@ -414,12 +423,14 @@ impl<T> Daemonize<T> {
                 change_root(root)?;
             }
 
-            if let Some(gid) = gid {
-                set_group(gid)?;
-            }
+            if self.set_group_and_user_id {
+                if let Some(gid) = gid {
+                    set_group(gid)?;
+                }
 
-            if let Some(uid) = uid {
-                set_user(uid)?;
+                if let Some(uid) = uid {
+                    set_user(uid)?;
+                }
             }
 
             if let Some(pid_file_fd) = pid_file_fd {
