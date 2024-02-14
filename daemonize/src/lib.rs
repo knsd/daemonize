@@ -51,7 +51,6 @@ use std::env::set_current_dir;
 use std::ffi::CString;
 use std::fmt;
 use std::fs::File;
-use std::mem::transmute;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
@@ -320,9 +319,19 @@ impl<T> Daemonize<T> {
     /// Execute `action` just before dropping privileges. Most common use case is to open
     /// listening socket. Result of `action` execution will be returned by `start` method.
     pub fn privileged_action<N, F: FnOnce() -> N + 'static>(self, action: F) -> Daemonize<N> {
-        let mut new: Daemonize<N> = unsafe { transmute(self) };
-        new.privileged_action = Box::new(action);
-        new
+        Daemonize {
+            directory: self.directory,
+            pid_file: self.pid_file,
+            chown_pid_file: self.chown_pid_file,
+            user: self.user,
+            group: self.group,
+            umask: self.umask,
+            root: self.root,
+            privileged_action: Box::new(action),
+            stdin: self.stdin,
+            stdout: self.stdout,
+            stderr: self.stderr,
+        }
     }
 
     /// Configuration for the child process's standard output stream.
